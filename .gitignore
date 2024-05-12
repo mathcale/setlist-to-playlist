@@ -1,0 +1,7 @@
+bin/
+**/tmp/
+
+**/.env
+coverage.tmp
+coverage.txt
+profile.out
