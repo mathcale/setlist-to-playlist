@@ -3,7 +3,9 @@ package config
 import "github.com/spf13/viper"
 
 type Config struct {
-	SetlistFMAPIKey string `mapstructure:"SETLISTFM_API_KEY"`
+	SetlistFMAPIKey     string `mapstructure:"SETLISTFM_API_KEY"`
+	SetlistFMAPIBaseURL string `mapstructure:"SETLISTFM_API_BASE_URL"`
+	SetlistFMAPITimeout int    `mapstructure:"SETLISTFM_API_TIMEOUT"`
 }
 
 func Load(path string) (*Config, error) {
