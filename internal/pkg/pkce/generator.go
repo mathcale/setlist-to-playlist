@@ -15,7 +15,7 @@ type PKCECodeGeneratorInterface interface {
 
 type PKCECodeGenerator struct{}
 
-func NewPKCECodeGenerator() *PKCECodeGenerator {
+func NewPKCECodeGenerator() PKCECodeGeneratorInterface {
 	return &PKCECodeGenerator{}
 }
 
