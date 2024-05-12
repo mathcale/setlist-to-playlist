@@ -16,11 +16,11 @@ func Load(path string) (*Config, error) {
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := viper.Unmarshal(&c); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return c, nil
