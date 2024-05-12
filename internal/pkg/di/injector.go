@@ -2,6 +2,7 @@ package di
 
 import (
 	"github.com/mathcale/setlist-to-playlist/config"
+	"github.com/mathcale/setlist-to-playlist/internal/pkg/pkce"
 )
 
 type DependencyInjectorInterface interface {
@@ -13,6 +14,7 @@ type DependencyInjector struct {
 }
 
 type Dependencies struct {
+	PKCECodeGenerator pkce.PKCECodeGeneratorInterface
 }
 
 func NewDependencyInjector(c *config.Config) *DependencyInjector {
@@ -22,5 +24,9 @@ func NewDependencyInjector(c *config.Config) *DependencyInjector {
 }
 
 func (di *DependencyInjector) Inject() (*Dependencies, error) {
-	return &Dependencies{}, nil
+	pkceGen := pkce.NewPKCECodeGenerator()
+
+	return &Dependencies{
+		PKCECodeGenerator: pkceGen,
+	}, nil
 }
