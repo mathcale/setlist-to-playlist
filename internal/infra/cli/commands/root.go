@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/zmb3/spotify/v2"
@@ -78,7 +79,20 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rc.Logger.Info(fmt.Sprintf("Hello \"%s\"", currUser.Email), nil)
+	token, err := spotifyClient.Token()
+	if err != nil {
+		rc.Logger.Error("Failed to get Spotify token", err, nil)
+		return err
+	}
+
+	rc.Logger.Info(
+		fmt.Sprintf(
+			"Logged in as \"%s\". Session valid until %s",
+			currUser.Email,
+			token.Expiry.Local().Format(time.RFC3339),
+		),
+		nil,
+	)
 
 	setlistID, err := rc.ExtractSetlistFMIDFromURLUseCase.Execute(setlistfmURL)
 	if err != nil {
@@ -89,7 +103,7 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rc.Logger.Info(fmt.Sprintf("Loading data from setlist [%s]", *setlistID), nil)
+	rc.Logger.Info(fmt.Sprintf("Loading data from setlist [%s]...", *setlistID), nil)
 
 	set, err := rc.GetSetlistByIDUseCase.Execute(*setlistID)
 	if err != nil {
@@ -100,10 +114,10 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rc.Logger.Info(fmt.Sprintf("Setlist [%s] loaded", *setlistID), nil)
-	rc.Logger.Debug("Setlist data", map[string]interface{}{
-		"setlist": set,
-	})
+	rc.Logger.Info(fmt.Sprintf("Setlist loaded: [%s]", set.Title()), nil)
+	rc.Logger.Info("Creating playlist...", nil)
+
+	// TODO: fetch songs and create playlist use-case here
 
 	return nil
 }

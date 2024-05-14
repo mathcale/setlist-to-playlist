@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	spotifyclient "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	"github.com/zmb3/spotify/v2"
 
+	spotifyclient "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
 	oauth2util "github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 )
@@ -55,12 +55,5 @@ func (uc *SpotifyAuthCallbackUseCase) Execute(
 		return nil, fmt.Errorf("state mismatch: %s != %s", st, state)
 	}
 
-	client := uc.Client.NewAPIClient(ctx, token)
-	usr, _ := client.CurrentUser(ctx)
-
-	uc.Logger.Debug("Spotify client created", map[string]interface{}{
-		"user": usr.Email,
-	})
-
-	return client, nil
+	return uc.Client.NewAPIClient(ctx, token), nil
 }
