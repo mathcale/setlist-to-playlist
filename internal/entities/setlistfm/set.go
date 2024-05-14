@@ -1,5 +1,7 @@
 package setlistfm
 
+import "fmt"
+
 type Artist struct {
 	MBID           string `json:"mbid"`
 	Name           string `json:"name"`
@@ -61,4 +63,20 @@ type Set struct {
 	Tour        Tour   `json:"tour"`
 	Sets        Sets   `json:"sets"`
 	URL         string `json:"url"`
+}
+
+func (s *Set) Title() string {
+	return fmt.Sprintf("%s %s @ %s, %s - %s", s.Artist.Name, s.Tour.Name, s.Venue.Name, s.Venue.City.Name, s.Venue.City.Country.Name)
+}
+
+func (s *Set) Songs() []string {
+	var songs []string
+
+	for _, set := range s.Sets.Set {
+		for _, song := range set.Song {
+			songs = append(songs, song.Name)
+		}
+	}
+
+	return songs
 }
