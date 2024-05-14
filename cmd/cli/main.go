@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/mathcale/setlist-to-playlist/config"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/di"
@@ -15,8 +16,12 @@ func main() {
 
 	d := di.NewDependencyInjector(cfg)
 
-	_, err = d.Inject()
+	deps, err := d.Inject()
 	if err != nil {
 		log.Fatalf("There was an error while injecting dependencies: %s", err)
+	}
+
+	if err := deps.CLI.Start(); err != nil {
+		os.Exit(1)
 	}
 }
