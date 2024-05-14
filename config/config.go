@@ -3,9 +3,14 @@ package config
 import "github.com/spf13/viper"
 
 type Config struct {
+	LogLevel            string `mapstructure:"LOG_LEVEL"`
+	WebServerPort       int64  `mapstructure:"WEBSERVER_PORT"`
 	SetlistFMAPIKey     string `mapstructure:"SETLISTFM_API_KEY"`
 	SetlistFMAPIBaseURL string `mapstructure:"SETLISTFM_API_BASE_URL"`
 	SetlistFMAPITimeout int    `mapstructure:"SETLISTFM_API_TIMEOUT"`
+	SpotifyClientID     string `mapstructure:"SPOTIFY_ID"`
+	SpotifyClientSecret string `mapstructure:"SPOTIFY_SECRET"`
+	SpotifyRedirectURL  string `mapstructure:"SPOTIFY_REDIRECT_URL"`
 }
 
 func Load(path string) (*Config, error) {
