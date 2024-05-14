@@ -1,4 +1,4 @@
-package pkce
+package oauth2
 
 import (
 	"testing"

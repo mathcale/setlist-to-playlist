@@ -1,4 +1,4 @@
-package pkce
+package oauth2
 
 import (
 	go_oauth_pkce_code_verifier "github.com/nirasan/go-oauth-pkce-code-verifier"
