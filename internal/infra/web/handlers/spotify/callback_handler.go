@@ -45,9 +45,9 @@ func (h *SpotifyAuthCallbackWebHandler) Handle(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	h.SpotifyClientChannel <- client
-
 	h.ResponseHandler.Respond(w, http.StatusOK, map[string]string{
 		"message": "Spotify login completed, you can close this page now.",
 	})
+
+	h.SpotifyClientChannel <- client
 }
