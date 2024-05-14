@@ -1,11 +1,9 @@
 package logger
 
 import (
-	"net/http"
 	"os"
 	"time"
 
-	chizero "github.com/ironstar-io/chizerolog"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -20,7 +18,6 @@ type LoggerInterface interface {
 	Error(msg string, err error, tags map[string]interface{})
 	Debug(msg string, tags map[string]interface{})
 	Trace(msg string, tags map[string]interface{})
-	NewChiServerLogger() func(next http.Handler) http.Handler
 }
 
 func NewLogger(level string) LoggerInterface {
@@ -29,10 +26,6 @@ func NewLogger(level string) LoggerInterface {
 	return &Logger{
 		Level: getLevel(level),
 	}
-}
-
-func (l *Logger) NewChiServerLogger() func(next http.Handler) http.Handler {
-	return chizero.LoggerMiddleware(l.getLogger())
 }
 
 func setup(level string) {

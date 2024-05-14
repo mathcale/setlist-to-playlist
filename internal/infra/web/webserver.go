@@ -40,8 +40,6 @@ func NewWebServer(
 }
 
 func (s *WebServer) Start() {
-	s.Router.Use(s.Logger.NewChiServerLogger())
-
 	for _, h := range s.Handlers {
 		s.Logger.Debug(fmt.Sprintf("Registering route %s %s", h.Method, h.Path), nil)
 		s.Router.MethodFunc(h.Method, h.Path, h.HandlerFunc)
