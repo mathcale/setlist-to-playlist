@@ -66,6 +66,28 @@ func (s *RootCmd) Build() *cobra.Command {
 func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 	setlistfmURL, _ := cmd.Flags().GetString("url")
 
+	setlistID, err := rc.ExtractSetlistFMIDFromURLUseCase.Execute(setlistfmURL)
+	if err != nil {
+		rc.Logger.Error("Failed to extract Setlist.fm ID from URL", err, map[string]interface{}{
+			"url": setlistfmURL,
+		})
+
+		return err
+	}
+
+	rc.Logger.Info(fmt.Sprintf("Loading data from setlist [%s]...", *setlistID), nil)
+
+	set, err := rc.GetSetlistByIDUseCase.Execute(*setlistID)
+	if err != nil {
+		rc.Logger.Error("Failed to get setlist from Setlist.fm", err, map[string]interface{}{
+			"setlistID": *setlistID,
+		})
+
+		return err
+	}
+
+	rc.Logger.Info(fmt.Sprintf("Setlist loaded: [%s]", set.Title()), nil)
+
 	rc.WebServer.Start()
 
 	authURL := rc.SpotifyClient.GetAuthURL(rc.State, rc.GeneratedPKCECodes)
@@ -94,29 +116,7 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		nil,
 	)
 
-	setlistID, err := rc.ExtractSetlistFMIDFromURLUseCase.Execute(setlistfmURL)
-	if err != nil {
-		rc.Logger.Error("Failed to extract Setlist.fm ID from URL", err, map[string]interface{}{
-			"url": setlistfmURL,
-		})
-
-		return err
-	}
-
-	rc.Logger.Info(fmt.Sprintf("Loading data from setlist [%s]...", *setlistID), nil)
-
-	set, err := rc.GetSetlistByIDUseCase.Execute(*setlistID)
-	if err != nil {
-		rc.Logger.Error("Failed to get setlist from Setlist.fm", err, map[string]interface{}{
-			"setlistID": *setlistID,
-		})
-
-		return err
-	}
-
-	rc.Logger.Info(fmt.Sprintf("Setlist loaded: [%s]", set.Title()), nil)
 	rc.Logger.Info("Creating playlist...", nil)
-
 	// TODO: fetch songs and create playlist use-case here
 
 	return nil
