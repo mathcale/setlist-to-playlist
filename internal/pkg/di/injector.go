@@ -69,7 +69,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	)
 
 	spotifyClient := spotify_client.NewSpotifyClient(
-		pkceGen,
+		l,
 		di.Config.SpotifyRedirectURL,
 		di.Config.SpotifyClientID,
 		di.Config.SpotifyClientSecret,
@@ -78,6 +78,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	spotifyCallbackUseCase := spotify_ucs.NewSpotifyAuthCallbackUseCase(spotifyClient, l)
 	extractSetlistFMIDFromURLUseCase := setlistfm_ucs.NewExtractIDFromURLUseCase()
 	getSetlistByIDUseCase := setlistfm_ucs.NewGetSetlistByIDUseCase(setlistFMClient)
+	fetchSongsOnSpotifyUseCase := spotify_ucs.NewFetchSongsOnSpotifyUseCase(spotifyClient, l)
 
 	spotifyCallbackHandler := spotify_handlers.NewSpotifyAuthCallbackWebHandler(
 		spotifyCallbackUseCase,
@@ -96,6 +97,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		spotifyClient,
 		extractSetlistFMIDFromURLUseCase,
 		getSetlistByIDUseCase,
+		fetchSongsOnSpotifyUseCase,
 		*genCodes,
 		state,
 		ch,

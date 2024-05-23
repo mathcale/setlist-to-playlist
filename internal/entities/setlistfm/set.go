@@ -80,3 +80,7 @@ func (s *Set) Songs() []string {
 
 	return songs
 }
+
+func (s *Set) ArtistName() string {
+	return s.Artist.Name
+}
