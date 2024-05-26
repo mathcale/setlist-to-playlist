@@ -24,7 +24,7 @@ type SpotifyClientInterface interface {
 	CurrentSession() (*oauth2.Token, error)
 	FindAllSongsByName(ctx context.Context, name []string, artist string) (*entities.FindAllSongsOutput, error)
 	CreatePlaylist(ctx context.Context, title string, description string) (*entities.CreatePlaylistOutput, error)
-	AddTracksToPlaylist(ctx context.Context, playlistID string, songs entities.FindAllSongsOutput) error
+	AddTracksToPlaylist(ctx context.Context, input entities.AddTracksToPlaylistClientInput) error
 }
 
 type SpotifyClient struct {
@@ -178,21 +178,14 @@ func (c *SpotifyClient) CreatePlaylist(
 
 func (c *SpotifyClient) AddTracksToPlaylist(
 	ctx context.Context,
-	playlistID string,
-	songs entities.FindAllSongsOutput,
+	input entities.AddTracksToPlaylistClientInput,
 ) error {
-	songIDs := make([]spotify.ID, len(songs.Songs))
-
-	for i, s := range songs.Songs {
-		songIDs[i] = spotify.ID(s.ID)
-	}
-
 	c.Logger.Debug("Adding tracks to playlist...", map[string]interface{}{
-		"playlistID": playlistID,
-		"songIDs":    songIDs,
+		"playlist_id": input.PlaylistID,
+		"song_ids":    input.Tracks,
 	})
 
-	if _, err := c.AuthenticatedClient.AddTracksToPlaylist(ctx, spotify.ID(playlistID), songIDs...); err != nil {
+	if _, err := c.AuthenticatedClient.AddTracksToPlaylist(ctx, input.GetPlaylistID(), input.GetTrackIDs()...); err != nil {
 		return err
 	}
 

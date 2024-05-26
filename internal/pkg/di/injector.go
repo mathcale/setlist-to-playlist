@@ -30,13 +30,7 @@ type DependencyInjector struct {
 }
 
 type Dependencies struct {
-	Logger                        logger.LoggerInterface
-	WebResponseHandler            responsehandler.WebResponseHandlerInterface
-	PKCECodeGenerator             oauth2.PKCECodeGeneratorInterface
-	SetlistFMClient               setlistfm.SetlistFMClientInterface
-	WebServer                     web.WebServerInterface
-	SpotifyAuthCallbackWebHandler spotify_handlers.SpotifyAuthCallbackWebHandlerInterface
-	CLI                           cli.CLIInterface
+	CLI cli.CLIInterface
 }
 
 func NewDependencyInjector(c *config.Config) *DependencyInjector {
@@ -79,6 +73,8 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	extractSetlistFMIDFromURLUseCase := setlistfm_ucs.NewExtractIDFromURLUseCase()
 	getSetlistByIDUseCase := setlistfm_ucs.NewGetSetlistByIDUseCase(setlistFMClient)
 	fetchSongsOnSpotifyUseCase := spotify_ucs.NewFetchSongsOnSpotifyUseCase(spotifyClient, l)
+	createPlaylistOnSpotifyUseCase := spotify_ucs.NewCreatePlaylistUseCase(spotifyClient, l)
+	addTracksToSpotifyPlaylistUseCase := spotify_ucs.NewAddTracksToPlaylistUseCase(spotifyClient, l)
 
 	spotifyCallbackHandler := spotify_handlers.NewSpotifyAuthCallbackWebHandler(
 		spotifyCallbackUseCase,
@@ -98,6 +94,8 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		extractSetlistFMIDFromURLUseCase,
 		getSetlistByIDUseCase,
 		fetchSongsOnSpotifyUseCase,
+		createPlaylistOnSpotifyUseCase,
+		addTracksToSpotifyPlaylistUseCase,
 		*genCodes,
 		state,
 		ch,
@@ -106,12 +104,6 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	cli := cli.NewCLI(rootCmd.Build())
 
 	return &Dependencies{
-		Logger:                        l,
-		WebResponseHandler:            responseHandler,
-		PKCECodeGenerator:             pkceGen,
-		SetlistFMClient:               setlistFMClient,
-		WebServer:                     webServer,
-		SpotifyAuthCallbackWebHandler: spotifyCallbackHandler,
-		CLI:                           cli,
+		CLI: cli,
 	}, nil
 }
