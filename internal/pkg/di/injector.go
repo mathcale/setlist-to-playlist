@@ -9,6 +9,7 @@ import (
 	"github.com/mathcale/setlist-to-playlist/config"
 	"github.com/mathcale/setlist-to-playlist/internal/clients/setlistfm"
 	spotify_client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
+	"github.com/mathcale/setlist-to-playlist/internal/gateways"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/web"
@@ -87,9 +88,9 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	webRouter := web.NewWebRouter(spotifyCallbackHandler)
 	webServer := web.NewWebServer(di.Config.WebServerPort, l, webRouter.Build())
 
-	rootCmd := commands.NewRootCmd(
-		webServer,
+	rootCmdGw := gateways.NewRootCmdGateway(
 		l,
+		webServer,
 		spotifyClient,
 		extractSetlistFMIDFromURLUseCase,
 		getSetlistByIDUseCase,
@@ -101,6 +102,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		ch,
 	)
 
+	rootCmd := commands.NewRootCmd(l, rootCmdGw)
 	cli := cli.NewCLI(rootCmd.Build())
 
 	return &Dependencies{
