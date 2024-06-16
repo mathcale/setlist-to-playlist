@@ -6,6 +6,10 @@ Cool CLI that creates a Spotify playlist based on a Setlist.fm entry, written in
 
 TBA
 
+## Architecture
+
+TBA
+
 ## Development
 
 TBA
