@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mathcale/setlist-to-playlist/internal/gateways"
+	"github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands/gateways"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
 )
 

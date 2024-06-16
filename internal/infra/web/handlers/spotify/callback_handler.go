@@ -3,11 +3,10 @@ package spotify
 import (
 	"net/http"
 
-	"github.com/zmb3/spotify/v2"
-
+	client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	oauth2util "github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/responsehandler"
-	spotifyuc "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
+	uc "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
 )
 
 type SpotifyAuthCallbackWebHandlerInterface interface {
@@ -15,19 +14,19 @@ type SpotifyAuthCallbackWebHandlerInterface interface {
 }
 
 type SpotifyAuthCallbackWebHandler struct {
-	CallbackUseCase      spotifyuc.SpotifyAuthCallbackUseCaseInterface
+	CallbackUseCase      uc.SpotifyAuthCallbackUseCaseInterface
 	ResponseHandler      responsehandler.WebResponseHandlerInterface
 	GeneratedPKCECodes   oauth2util.GenerateOutput
 	State                string
-	SpotifyClientChannel chan *spotify.Client
+	SpotifyClientChannel chan client.AuthenticatedClient
 }
 
 func NewSpotifyAuthCallbackWebHandler(
-	uc spotifyuc.SpotifyAuthCallbackUseCaseInterface,
+	uc uc.SpotifyAuthCallbackUseCaseInterface,
 	rh responsehandler.WebResponseHandlerInterface,
 	genCodes oauth2util.GenerateOutput,
 	state string,
-	ch chan *spotify.Client,
+	ch chan client.AuthenticatedClient,
 ) SpotifyAuthCallbackWebHandlerInterface {
 	return &SpotifyAuthCallbackWebHandler{
 		CallbackUseCase:      uc,
@@ -39,7 +38,7 @@ func NewSpotifyAuthCallbackWebHandler(
 }
 
 func (h *SpotifyAuthCallbackWebHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	client, err := h.CallbackUseCase.Execute(r.Context(), r, h.State, h.GeneratedPKCECodes)
+	cl, err := h.CallbackUseCase.Execute(r.Context(), r, h.State, h.GeneratedPKCECodes)
 	if err != nil {
 		h.ResponseHandler.RespondWithError(w, http.StatusInternalServerError, err)
 		return
@@ -49,5 +48,9 @@ func (h *SpotifyAuthCallbackWebHandler) Handle(w http.ResponseWriter, r *http.Re
 		"message": "Spotify login completed, you can close this page now.",
 	})
 
-	h.SpotifyClientChannel <- client
+	authClient := client.AuthenticatedClient{
+		Client: *cl,
+	}
+
+	h.SpotifyClientChannel <- authClient
 }

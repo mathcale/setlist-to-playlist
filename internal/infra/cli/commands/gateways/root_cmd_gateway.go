@@ -2,9 +2,6 @@ package gateways
 
 import (
 	"context"
-	"fmt"
-
-	"github.com/zmb3/spotify/v2"
 
 	spotifyclient "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/setlistfm"
@@ -33,9 +30,10 @@ type RootCmdGateway struct {
 	FetchSongsOnSpotifyUseCase        spotify_ucs.FetchSongsOnSpotifyUseCaseInterface
 	CreatePlaylistOnSpotifyUseCase    spotify_ucs.CreatePlaylistUseCaseInterface
 	AddTracksToSpotifyPlaylistUseCase spotify_ucs.AddTracksToPlaylistUseCaseInterface
+	SpotifyUserAuthenticationUseCase  spotify_ucs.SpotifyUserAuthenticationUseCaseInterface
 	GeneratedPKCECodes                oauth2util.GenerateOutput
 	State                             string
-	SpotifyClientChannel              chan *spotify.Client
+	SpotifyClientChannel              chan spotifyclient.AuthenticatedClient
 }
 
 func NewRootCmdGateway(
@@ -47,9 +45,10 @@ func NewRootCmdGateway(
 	fetchSongsOnSpotifyUseCase spotify_ucs.FetchSongsOnSpotifyUseCaseInterface,
 	createPlaylistOnSpotifyUseCase spotify_ucs.CreatePlaylistUseCaseInterface,
 	addTracksToSpotifyPlaylistUseCase spotify_ucs.AddTracksToPlaylistUseCaseInterface,
+	spotifyUserAuthenticationUseCase spotify_ucs.SpotifyUserAuthenticationUseCaseInterface,
 	genCodes oauth2util.GenerateOutput,
 	state string,
-	ch chan *spotify.Client,
+	ch chan spotifyclient.AuthenticatedClient,
 ) RootCmdGatewayInterface {
 	return &RootCmdGateway{
 		Logger:                            logger,
@@ -60,6 +59,7 @@ func NewRootCmdGateway(
 		FetchSongsOnSpotifyUseCase:        fetchSongsOnSpotifyUseCase,
 		CreatePlaylistOnSpotifyUseCase:    createPlaylistOnSpotifyUseCase,
 		AddTracksToSpotifyPlaylistUseCase: addTracksToSpotifyPlaylistUseCase,
+		SpotifyUserAuthenticationUseCase:  spotifyUserAuthenticationUseCase,
 		GeneratedPKCECodes:                genCodes,
 		State:                             state,
 		SpotifyClientChannel:              ch,
@@ -97,20 +97,7 @@ func (gw *RootCmdGateway) StartWebServer() {
 }
 
 func (gw *RootCmdGateway) HandleSpotifyAuthentication(ctx context.Context) error {
-	authURL := gw.SpotifyClient.GetAuthURL(gw.State, gw.GeneratedPKCECodes)
-	gw.Logger.Info(
-		fmt.Sprintf("Please visit the following URL to authenticate with Spotify: %s", authURL),
-		nil,
-	)
-
-	gw.SpotifyClient.SetAuthenticatedClient(gw.SpotifyClientChannel)
-	close(gw.SpotifyClientChannel)
-
-	if err := gw.getCurrentSpotifySession(ctx); err != nil {
-		return err
-	}
-
-	return nil
+	return gw.SpotifyUserAuthenticationUseCase.Execute(ctx, gw.GeneratedPKCECodes, gw.State)
 }
 
 func (gw *RootCmdGateway) FetchSongsOnSpotify(
@@ -118,12 +105,7 @@ func (gw *RootCmdGateway) FetchSongsOnSpotify(
 	songTitles []string,
 	artist string,
 ) (*spotify_entities.FindAllSongsOutput, error) {
-	songs, err := gw.FetchSongsOnSpotifyUseCase.Execute(ctx, songTitles, artist)
-	if err != nil {
-		return nil, err
-	}
-
-	return songs, nil
+	return gw.FetchSongsOnSpotifyUseCase.Execute(ctx, songTitles, artist)
 }
 
 func (gw *RootCmdGateway) CreatePlaylistOnSpotify(
@@ -158,27 +140,4 @@ func (gw *RootCmdGateway) CreatePlaylistOnSpotify(
 	}
 
 	return &createPlaylistOut.URL, nil
-}
-
-func (gw *RootCmdGateway) getCurrentSpotifySession(ctx context.Context) error {
-	user, err := gw.SpotifyClient.CurrentUser(ctx)
-	if err != nil {
-		return err
-	}
-
-	token, err := gw.SpotifyClient.CurrentSession()
-	if err != nil {
-		return err
-	}
-
-	gw.Logger.Info(
-		fmt.Sprintf(
-			"Logged in as \"%s\". Session valid until %s",
-			user.Email,
-			token.Expiry.Local().Format("2006-01-02 15:04:05"),
-		),
-		nil,
-	)
-
-	return nil
 }

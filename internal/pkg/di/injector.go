@@ -1,17 +1,21 @@
 package di
 
 import (
+	"os"
+	"path"
 	"time"
 
 	"github.com/dchest/uniuri"
-	"github.com/zmb3/spotify/v2"
 
 	"github.com/mathcale/setlist-to-playlist/config"
 	"github.com/mathcale/setlist-to-playlist/internal/clients/setlistfm"
 	spotify_client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
-	"github.com/mathcale/setlist-to-playlist/internal/gateways"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands"
+	rootcmd_gw "github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands/gateways"
+	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence"
+	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence/drivers"
+	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence/strategies/plaintext"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/web"
 	spotify_handlers "github.com/mathcale/setlist-to-playlist/internal/infra/web/handlers/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/httpclient"
@@ -20,7 +24,10 @@ import (
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/responsehandler"
 	setlistfm_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/setlistfm"
 	spotify_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
+	spotify_uc_gw "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify/gateways"
 )
+
+var SPOTIFY_AUTH_FILE = "spotify_auth.json"
 
 type DependencyInjectorInterface interface {
 	Inject() (*Dependencies, error)
@@ -41,8 +48,15 @@ func NewDependencyInjector(c *config.Config) *DependencyInjector {
 }
 
 func (di *DependencyInjector) Inject() (*Dependencies, error) {
-	ch := make(chan *spotify.Client)
+	ch := make(chan spotify_client.AuthenticatedClient)
 	state := uniuri.New()
+
+	fsDriver := drivers.NewFileSystemDriver()
+
+	appConfigDir, err := initAppConfigDir(fsDriver)
+	if err != nil {
+		return nil, err
+	}
 
 	pkceGen := oauth2.NewPKCECodeGenerator()
 	genCodes, err := pkceGen.Generate()
@@ -70,12 +84,31 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		di.Config.SpotifyClientSecret,
 	)
 
+	plainTextPersistence := plaintext.NewPlainTextPersistenceStrategy(
+		fsDriver,
+		l,
+		path.Join(*appConfigDir, SPOTIFY_AUTH_FILE),
+	)
+
+	spotifyAuthPersistence := persistence.NewSpotifyAuthPersistence(plainTextPersistence, l)
+
+	spotifyUserAuthenticationUseCaseGateway := spotify_uc_gw.
+		NewSpotifyUserAuthenticationUseCaseGateway(
+			spotifyClient,
+			spotifyAuthPersistence,
+			l,
+			ch,
+		)
+
 	spotifyCallbackUseCase := spotify_ucs.NewSpotifyAuthCallbackUseCase(spotifyClient, l)
 	extractSetlistFMIDFromURLUseCase := setlistfm_ucs.NewExtractIDFromURLUseCase()
 	getSetlistByIDUseCase := setlistfm_ucs.NewGetSetlistByIDUseCase(setlistFMClient)
 	fetchSongsOnSpotifyUseCase := spotify_ucs.NewFetchSongsOnSpotifyUseCase(spotifyClient, l)
 	createPlaylistOnSpotifyUseCase := spotify_ucs.NewCreatePlaylistUseCase(spotifyClient, l)
 	addTracksToSpotifyPlaylistUseCase := spotify_ucs.NewAddTracksToPlaylistUseCase(spotifyClient, l)
+	spotifyUserAuthenticationUseCase := spotify_ucs.NewSpotifyUserAuthenticationUseCase(
+		spotifyUserAuthenticationUseCaseGateway,
+	)
 
 	spotifyCallbackHandler := spotify_handlers.NewSpotifyAuthCallbackWebHandler(
 		spotifyCallbackUseCase,
@@ -88,7 +121,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	webRouter := web.NewWebRouter(spotifyCallbackHandler)
 	webServer := web.NewWebServer(di.Config.WebServerPort, l, webRouter.Build())
 
-	rootCmdGw := gateways.NewRootCmdGateway(
+	rootCmdGw := rootcmd_gw.NewRootCmdGateway(
 		l,
 		webServer,
 		spotifyClient,
@@ -97,6 +130,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		fetchSongsOnSpotifyUseCase,
 		createPlaylistOnSpotifyUseCase,
 		addTracksToSpotifyPlaylistUseCase,
+		spotifyUserAuthenticationUseCase,
 		*genCodes,
 		state,
 		ch,
@@ -108,4 +142,26 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	return &Dependencies{
 		CLI: cli,
 	}, nil
+}
+
+func initAppConfigDir(fsDriver drivers.FileSystemDriverInterface) (*string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, err
+	}
+
+	appConfigDir := path.Join(configDir, "setlist-to-playlist")
+	authFilePath := path.Join(appConfigDir, SPOTIFY_AUTH_FILE)
+
+	if err := fsDriver.CreateDir(appConfigDir, 0750); err != nil {
+		return nil, err
+	}
+
+	if exists := fsDriver.Exists(authFilePath); !exists {
+		if err := fsDriver.Write(authFilePath, []byte("{}"), 0660); err != nil {
+			return nil, err
+		}
+	}
+
+	return &appConfigDir, nil
 }
