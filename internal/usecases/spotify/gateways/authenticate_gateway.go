@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/browser"
+
 	client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	entities "github.com/mathcale/setlist-to-playlist/internal/entities/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence"
@@ -57,12 +59,15 @@ func (gw *SpotifyUserAuthenticationUseCaseGateway) AuthenticateUser(
 	authURL := gw.Client.GetAuthURL(state, pkceCodes)
 
 	gw.Logger.Info(
-		fmt.Sprintf("Please visit the following URL to authenticate with Spotify: %s", authURL),
+		fmt.Sprintf("Opening browser for Spotify authentication.\nIf nothing happens, please visit the following URL: %s", authURL),
 		nil,
 	)
 
+	if err := browser.OpenURL(authURL); err != nil {
+		gw.Logger.Warn("Failed to open browser, use the link above to proceed", nil)
+	}
+
 	gw.Client.SetAuthenticatedClient(gw.AuthenticatedClientChannel)
-	close(gw.AuthenticatedClientChannel)
 
 	if err := gw.persistToken(); err != nil {
 		return err
@@ -108,12 +113,14 @@ func (gw *SpotifyUserAuthenticationUseCaseGateway) persistToken() error {
 		"token": token,
 	})
 
-	if err := gw.Persistence.Write(entities.NewSpotifyUserAuthData(
+	authData := entities.NewSpotifyUserAuthData(
 		token.AccessToken,
 		token.Expiry.Format(time.RFC3339),
 		token.RefreshToken,
 		token.TokenType,
-	)); err != nil {
+	)
+
+	if err := gw.Persistence.Write(authData); err != nil {
 		return err
 	}
 
