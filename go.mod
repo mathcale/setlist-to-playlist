@@ -6,6 +6,7 @@ require (
 	github.com/dchest/uniuri v1.2.0
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/nirasan/go-oauth-pkce-code-verifier v0.0.0-20220510032225-4f9f17eaec4c
+	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/rs/zerolog v1.32.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
