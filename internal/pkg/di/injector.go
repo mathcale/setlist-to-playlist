@@ -101,7 +101,6 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		)
 
 	spotifyCallbackUseCase := spotify_ucs.NewSpotifyAuthCallbackUseCase(spotifyClient, l)
-	extractSetlistFMIDFromURLUseCase := setlistfm_ucs.NewExtractIDFromURLUseCase()
 	getSetlistByIDUseCase := setlistfm_ucs.NewGetSetlistByIDUseCase(setlistFMClient)
 	fetchSongsOnSpotifyUseCase := spotify_ucs.NewFetchSongsOnSpotifyUseCase(spotifyClient, l)
 	createPlaylistOnSpotifyUseCase := spotify_ucs.NewCreatePlaylistUseCase(spotifyClient, l)
@@ -125,7 +124,6 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		l,
 		webServer,
 		spotifyClient,
-		extractSetlistFMIDFromURLUseCase,
 		getSetlistByIDUseCase,
 		fetchSongsOnSpotifyUseCase,
 		createPlaylistOnSpotifyUseCase,

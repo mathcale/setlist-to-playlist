@@ -36,15 +36,17 @@ func (s *GetSetlistByIDUseCaseTestSuite) TestExecute() {
 	s.Run("Should return a setlist", func() {
 		defer s.cleanMocks()
 
-		id := "any-setlist-id"
+		in := entity.NewGetSetlistByIDInput(
+			"https://www.setlist.fm/setlist/blink182/2024/autodromo-de-interlagos-sao-paulo-brazil-53aa1325.html",
+		)
 
 		expected := &entity.Set{
 			ID: "any-setlist-id",
 		}
 
-		s.ClientMock.On("GetSetlistByID", id).Return(expected, nil)
+		s.ClientMock.On("GetSetlistByID", in).Return(expected, nil)
 
-		result, err := s.UseCase.Execute(id)
+		result, err := s.UseCase.Execute(in)
 
 		s.NoError(err)
 		s.Equal(expected, result)
@@ -53,11 +55,13 @@ func (s *GetSetlistByIDUseCaseTestSuite) TestExecute() {
 	s.Run("Should return an error while fetching setlist", func() {
 		defer s.cleanMocks()
 
-		id := "any-setlist-id"
+		in := entity.NewGetSetlistByIDInput(
+			"https://www.setlist.fm/setlist/blink182/2024/autodromo-de-interlagos-sao-paulo-brazil-53aa1325.html",
+		)
 
-		s.ClientMock.On("GetSetlistByID", id).Return(nil, errors.New("any-error"))
+		s.ClientMock.On("GetSetlistByID", in).Return(nil, errors.New("any-error"))
 
-		result, err := s.UseCase.Execute(id)
+		result, err := s.UseCase.Execute(in)
 
 		s.Error(err)
 		s.ErrorContains(err, "any-error")

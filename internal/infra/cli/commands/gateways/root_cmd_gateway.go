@@ -25,7 +25,6 @@ type RootCmdGateway struct {
 	Logger                            logger.LoggerInterface
 	WebServer                         web.WebServerInterface
 	SpotifyClient                     spotifyclient.SpotifyClientInterface
-	ExtractSetlistFMIDFromURLUseCase  setlistfm_ucs.ExtractIDFromURLUseCaseInterface
 	GetSetlistByIDUseCase             setlistfm_ucs.GetSetlistByIDUseCaseInterface
 	FetchSongsOnSpotifyUseCase        spotify_ucs.FetchSongsOnSpotifyUseCaseInterface
 	CreatePlaylistOnSpotifyUseCase    spotify_ucs.CreatePlaylistUseCaseInterface
@@ -40,7 +39,6 @@ func NewRootCmdGateway(
 	logger logger.LoggerInterface,
 	webServer web.WebServerInterface,
 	spotifyClient spotifyclient.SpotifyClientInterface,
-	extractSetlistFMIDFromURLUseCase setlistfm_ucs.ExtractIDFromURLUseCaseInterface,
 	getSetlistByIDUseCase setlistfm_ucs.GetSetlistByIDUseCaseInterface,
 	fetchSongsOnSpotifyUseCase spotify_ucs.FetchSongsOnSpotifyUseCaseInterface,
 	createPlaylistOnSpotifyUseCase spotify_ucs.CreatePlaylistUseCaseInterface,
@@ -54,7 +52,6 @@ func NewRootCmdGateway(
 		Logger:                            logger,
 		WebServer:                         webServer,
 		SpotifyClient:                     spotifyClient,
-		ExtractSetlistFMIDFromURLUseCase:  extractSetlistFMIDFromURLUseCase,
 		GetSetlistByIDUseCase:             getSetlistByIDUseCase,
 		FetchSongsOnSpotifyUseCase:        fetchSongsOnSpotifyUseCase,
 		CreatePlaylistOnSpotifyUseCase:    createPlaylistOnSpotifyUseCase,
@@ -71,16 +68,9 @@ func (gw *RootCmdGateway) GetTracksFromSetlist(setlistfmURL string) (*setlistfm.
 		"url": setlistfmURL,
 	})
 
-	setlistID, err := gw.ExtractSetlistFMIDFromURLUseCase.Execute(setlistfmURL)
-	if err != nil {
-		return nil, err
-	}
+	in := setlistfm.NewGetSetlistByIDInput(setlistfmURL)
 
-	gw.Logger.Debug("Loading data from setlist", map[string]interface{}{
-		"setlistID": *setlistID,
-	})
-
-	set, err := gw.GetSetlistByIDUseCase.Execute(*setlistID)
+	set, err := gw.GetSetlistByIDUseCase.Execute(in)
 	if err != nil {
 		return nil, err
 	}

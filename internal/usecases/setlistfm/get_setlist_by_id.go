@@ -6,7 +6,7 @@ import (
 )
 
 type GetSetlistByIDUseCaseInterface interface {
-	Execute(id string) (*setlistfm.Set, error)
+	Execute(input setlistfm.GetSetlistByIDInput) (*setlistfm.Set, error)
 }
 
 type GetSetlistByIDUseCase struct {
@@ -19,6 +19,11 @@ func NewGetSetlistByIDUseCase(c setlistfm_client.SetlistFMClientInterface) GetSe
 	}
 }
 
-func (u *GetSetlistByIDUseCase) Execute(id string) (*setlistfm.Set, error) {
-	return u.SetlistFMClient.GetSetlistByID(id)
+func (u *GetSetlistByIDUseCase) Execute(in setlistfm.GetSetlistByIDInput) (*setlistfm.Set, error) {
+	id, err := in.SetlistID()
+	if err != nil {
+		return nil, err
+	}
+
+	return u.SetlistFMClient.GetSetlistByID(*id)
 }
