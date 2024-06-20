@@ -13,7 +13,9 @@ type GetSetlistByIDUseCase struct {
 	SetlistFMClient setlistfm_client.SetlistFMClientInterface
 }
 
-func NewGetSetlistByIDUseCase(c setlistfm_client.SetlistFMClientInterface) GetSetlistByIDUseCaseInterface {
+func NewGetSetlistByIDUseCase(
+	c setlistfm_client.SetlistFMClientInterface,
+) GetSetlistByIDUseCaseInterface {
 	return &GetSetlistByIDUseCase{
 		SetlistFMClient: c,
 	}
