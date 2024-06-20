@@ -1,8 +1,6 @@
 package di
 
 import (
-	"os"
-	"path"
 	"time"
 
 	"github.com/dchest/uniuri"
@@ -27,23 +25,23 @@ import (
 	spotify_uc_gw "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify/gateways"
 )
 
-var SPOTIFY_AUTH_FILE = "spotify_auth.json"
-
 type DependencyInjectorInterface interface {
 	Inject() (*Dependencies, error)
 }
 
 type DependencyInjector struct {
-	Config *config.Config
+	Config      *config.Config
+	ConfigPaths config.ConfigPaths
 }
 
 type Dependencies struct {
 	CLI cli.CLIInterface
 }
 
-func NewDependencyInjector(c *config.Config) *DependencyInjector {
+func NewDependencyInjector(c *config.Config, configPaths config.ConfigPaths) *DependencyInjector {
 	return &DependencyInjector{
-		Config: c,
+		Config:      c,
+		ConfigPaths: configPaths,
 	}
 }
 
@@ -52,11 +50,6 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	state := uniuri.New()
 
 	fsDriver := drivers.NewFileSystemDriver()
-
-	appConfigDir, err := initAppConfigDir(fsDriver)
-	if err != nil {
-		return nil, err
-	}
 
 	pkceGen := oauth2.NewPKCECodeGenerator()
 	genCodes, err := pkceGen.Generate()
@@ -68,26 +61,26 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	responseHandler := responsehandler.NewWebResponseHandler()
 
 	setlistFMHttpClient := httpclient.NewHttpClient(
-		di.Config.SetlistFMAPIBaseURL,
-		time.Duration(di.Config.SetlistFMAPITimeout)*time.Millisecond,
+		di.Config.SetlistFM.BaseURL,
+		time.Duration(di.Config.SetlistFM.Timeout)*time.Millisecond,
 	)
 
 	setlistFMClient := setlistfm.NewSetlistFMClient(
 		setlistFMHttpClient,
-		di.Config.SetlistFMAPIKey,
+		di.Config.SetlistFM.APIKey,
 	)
 
 	spotifyClient := spotify_client.NewSpotifyClient(
 		l,
-		di.Config.SpotifyRedirectURL,
-		di.Config.SpotifyClientID,
-		di.Config.SpotifyClientSecret,
+		di.Config.Spotify.RedirectURL,
+		di.Config.Spotify.ClientID,
+		di.Config.Spotify.ClientSecret,
 	)
 
 	plainTextPersistence := plaintext.NewPlainTextPersistenceStrategy(
 		fsDriver,
 		l,
-		path.Join(*appConfigDir, SPOTIFY_AUTH_FILE),
+		di.ConfigPaths.SpotifyAuthFile,
 	)
 
 	spotifyAuthPersistence := persistence.NewSpotifyAuthPersistence(plainTextPersistence, l)
@@ -140,26 +133,4 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	return &Dependencies{
 		CLI: cli,
 	}, nil
-}
-
-func initAppConfigDir(fsDriver drivers.FileSystemDriverInterface) (*string, error) {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return nil, err
-	}
-
-	appConfigDir := path.Join(configDir, "setlist-to-playlist")
-	authFilePath := path.Join(appConfigDir, SPOTIFY_AUTH_FILE)
-
-	if err := fsDriver.CreateDir(appConfigDir, 0750); err != nil {
-		return nil, err
-	}
-
-	if exists := fsDriver.Exists(authFilePath); !exists {
-		if err := fsDriver.Write(authFilePath, []byte("{}"), 0660); err != nil {
-			return nil, err
-		}
-	}
-
-	return &appConfigDir, nil
 }

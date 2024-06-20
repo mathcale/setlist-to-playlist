@@ -9,12 +9,17 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load(".")
+	configPaths, err := config.Init()
+	if err != nil {
+		log.Fatalf("There was an error while initializing config: %s", err)
+	}
+
+	cfg, err := config.Load(*configPaths)
 	if err != nil {
 		log.Fatalf("There was an error while loading config: %s", err)
 	}
 
-	d := di.NewDependencyInjector(cfg)
+	d := di.NewDependencyInjector(cfg, *configPaths)
 
 	deps, err := d.Inject()
 	if err != nil {
