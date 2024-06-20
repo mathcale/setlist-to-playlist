@@ -47,7 +47,7 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 
 	set, err := rc.Gateway.GetTracksFromSetlist(setlistfmURL)
 	if err != nil {
-		rc.Logger.Error("Failed to extract Setlist.fm ID from URL", err, nil)
+		rc.Logger.Error("Failed to get tracks from setlist", err, nil)
 		return err
 	}
 
