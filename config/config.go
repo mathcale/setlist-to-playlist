@@ -75,13 +75,18 @@ func Load(configPaths ConfigPaths) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
 	viper.AddConfigPath(configPaths.AppConfigDir)
-	viper.AddConfigPath(".")
 
 	viper.SetDefault("general.log_level", "info")
 	viper.SetDefault("general.webserver_port", 8080)
 	viper.SetDefault("setlistfm.base_url", "https://api.setlist.fm/rest")
 	viper.SetDefault("setlistfm.timeout_ms", 3000)
 	viper.SetDefault("spotify.redirect_url", "http://localhost:8080/callback")
+
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, err
+		}
+	}
 
 	if ok := viper.IsSet("setlistfm.api_key"); !ok {
 		var apiKey string
@@ -111,10 +116,6 @@ func Load(configPaths ConfigPaths) (*Config, error) {
 		if _, ok := err.(viper.ConfigFileAlreadyExistsError); !ok {
 			return nil, err
 		}
-	}
-
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, err
 	}
 
 	if err := viper.Unmarshal(&c); err != nil {
