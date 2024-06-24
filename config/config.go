@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/viper"
 
 	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence/drivers"
@@ -70,10 +71,10 @@ func Init() (*ConfigPaths, error) {
 func Load(configPaths ConfigPaths) (*Config, error) {
 	var c *Config
 
+	viper.WatchConfig()
 	viper.SetConfigName("config")
 	viper.SetConfigType("toml")
 	viper.AddConfigPath(configPaths.AppConfigDir)
-	viper.AddConfigPath(".")
 
 	viper.SetDefault("general.log_level", "info")
 	viper.SetDefault("general.webserver_port", 8080)
@@ -81,14 +82,40 @@ func Load(configPaths ConfigPaths) (*Config, error) {
 	viper.SetDefault("setlistfm.timeout_ms", 3000)
 	viper.SetDefault("spotify.redirect_url", "http://localhost:8080/callback")
 
-	if err := viper.SafeWriteConfigAs(configPaths.AppConfigFile); err != nil {
-		if _, ok := err.(viper.ConfigFileAlreadyExistsError); !ok {
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, err
 		}
 	}
 
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, err
+	if ok := viper.IsSet("setlistfm.api_key"); !ok {
+		var apiKey string
+		huh.NewInput().Title("What's your Setlist.fm API key?").Prompt(">").Value(&apiKey).Run()
+
+		viper.Set("setlistfm.api_key", apiKey)
+		viper.WriteConfig()
+	}
+
+	if ok := viper.IsSet("spotify.client_id"); !ok {
+		var clientID string
+		huh.NewInput().Title("What's your Spotify client ID?").Prompt(">").Value(&clientID).Run()
+
+		viper.Set("spotify.client_id", clientID)
+		viper.WriteConfig()
+	}
+
+	if ok := viper.IsSet("spotify.client_secret"); !ok {
+		var secret string
+		huh.NewInput().Title("What's your Spotify client secret?").Prompt(">").Value(&secret).Run()
+
+		viper.Set("spotify.client_secret", secret)
+		viper.WriteConfig()
+	}
+
+	if err := viper.SafeWriteConfigAs(configPaths.AppConfigFile); err != nil {
+		if _, ok := err.(viper.ConfigFileAlreadyExistsError); !ok {
+			return nil, err
+		}
 	}
 
 	if err := viper.Unmarshal(&c); err != nil {
