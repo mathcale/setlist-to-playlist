@@ -74,6 +74,6 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rc.Logger.Info(fmt.Sprintf("Playlist created successfully: %s", *playlistURL), nil)
+	rc.Logger.Info(fmt.Sprintf("Playlist created successfully, check it out: %s", *playlistURL), nil)
 	return nil
 }

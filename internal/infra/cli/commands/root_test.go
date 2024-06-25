@@ -124,7 +124,7 @@ func (s *RootCmdTestSuite) TestRun() {
 			"--url", url,
 		})
 
-		expectedMsg := fmt.Sprintf("Playlist created successfully: %s", playlistURL)
+		expectedMsg := fmt.Sprintf("Playlist created successfully, check it out: %s", playlistURL)
 
 		s.NoError(err)
 		s.Equal(s.LoggerMock.Calls[len(s.LoggerMock.Calls)-1].Arguments[0].(string), expectedMsg)
