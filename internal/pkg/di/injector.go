@@ -103,6 +103,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	)
 
 	spotifyCallbackHandler := spotify_handlers.NewSpotifyAuthCallbackWebHandler(
+		l,
 		spotifyCallbackUseCase,
 		responseHandler,
 		*genCodes,
