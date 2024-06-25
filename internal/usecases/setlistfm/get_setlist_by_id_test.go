@@ -39,12 +39,13 @@ func (s *GetSetlistByIDUseCaseTestSuite) TestExecute() {
 		in := entity.NewGetSetlistByIDInput(
 			"https://www.setlist.fm/setlist/blink182/2024/autodromo-de-interlagos-sao-paulo-brazil-53aa1325.html",
 		)
+		setlistID, _ := in.SetlistID()
 
 		expected := &entity.Set{
-			ID: "any-setlist-id",
+			ID: "53aa1325",
 		}
 
-		s.ClientMock.On("GetSetlistByID", in).Return(expected, nil)
+		s.ClientMock.On("GetSetlistByID", *setlistID).Return(expected, nil)
 
 		result, err := s.UseCase.Execute(in)
 
@@ -58,8 +59,9 @@ func (s *GetSetlistByIDUseCaseTestSuite) TestExecute() {
 		in := entity.NewGetSetlistByIDInput(
 			"https://www.setlist.fm/setlist/blink182/2024/autodromo-de-interlagos-sao-paulo-brazil-53aa1325.html",
 		)
+		setlistID, _ := in.SetlistID()
 
-		s.ClientMock.On("GetSetlistByID", in).Return(nil, errors.New("any-error"))
+		s.ClientMock.On("GetSetlistByID", *setlistID).Return(nil, errors.New("any-error"))
 
 		result, err := s.UseCase.Execute(in)
 
