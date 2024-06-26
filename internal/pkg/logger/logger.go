@@ -46,7 +46,13 @@ func (l *Logger) Warn(msg string, tags map[string]interface{}) {
 }
 
 func (l *Logger) Error(msg string, err error, tags map[string]interface{}) {
-	l.getLogger().Error().Fields(tags).Err(err).Msg(msg)
+	ev := l.getLogger().Error().Fields(tags).Err(err)
+
+	if l.Level == zerolog.DebugLevel {
+		ev = ev.Stack()
+	}
+
+	ev.Msg(msg)
 }
 
 func (l *Logger) Debug(msg string, tags map[string]interface{}) {

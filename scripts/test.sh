@@ -1,6 +1,14 @@
 #!/bin/sh
 
 set -e
+
+cleanup() {
+  rm -f coverage.txt coverage.tmp profile.out
+}
+
+trap cleanup EXIT
+
+cleanup
 echo "mode: set" > coverage.tmp
 
 for d in $(go list ./... | grep -v vendor); do
@@ -12,7 +20,6 @@ for d in $(go list ./... | grep -v vendor); do
   fi
 done
 
-cat coverage.tmp | grep -v "/internal/pkg/mocks" > coverage.txt
-rm coverage.tmp
+cat coverage.tmp | grep -v "/internal/tests/mocks" > coverage.txt
 
 go tool cover -html=coverage.txt

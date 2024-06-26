@@ -1,13 +1,15 @@
 package spotify
 
 import (
+	"embed"
+	"html/template"
 	"net/http"
 
-	"github.com/zmb3/spotify/v2"
-
+	client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
+	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
 	oauth2util "github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/responsehandler"
-	spotifyuc "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
+	uc "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
 )
 
 type SpotifyAuthCallbackWebHandlerInterface interface {
@@ -15,21 +17,27 @@ type SpotifyAuthCallbackWebHandlerInterface interface {
 }
 
 type SpotifyAuthCallbackWebHandler struct {
-	CallbackUseCase      spotifyuc.SpotifyAuthCallbackUseCaseInterface
+	Logger               logger.LoggerInterface
+	CallbackUseCase      uc.SpotifyAuthCallbackUseCaseInterface
 	ResponseHandler      responsehandler.WebResponseHandlerInterface
 	GeneratedPKCECodes   oauth2util.GenerateOutput
 	State                string
-	SpotifyClientChannel chan *spotify.Client
+	SpotifyClientChannel chan client.AuthenticatedClient
 }
 
+//go:embed static/callback.html
+var callbackHTML embed.FS
+
 func NewSpotifyAuthCallbackWebHandler(
-	uc spotifyuc.SpotifyAuthCallbackUseCaseInterface,
+	l logger.LoggerInterface,
+	uc uc.SpotifyAuthCallbackUseCaseInterface,
 	rh responsehandler.WebResponseHandlerInterface,
 	genCodes oauth2util.GenerateOutput,
 	state string,
-	ch chan *spotify.Client,
+	ch chan client.AuthenticatedClient,
 ) SpotifyAuthCallbackWebHandlerInterface {
 	return &SpotifyAuthCallbackWebHandler{
+		Logger:               l,
 		CallbackUseCase:      uc,
 		ResponseHandler:      rh,
 		GeneratedPKCECodes:   genCodes,
@@ -39,15 +47,27 @@ func NewSpotifyAuthCallbackWebHandler(
 }
 
 func (h *SpotifyAuthCallbackWebHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	client, err := h.CallbackUseCase.Execute(r.Context(), r, h.State, h.GeneratedPKCECodes)
+	cl, err := h.CallbackUseCase.Execute(r.Context(), r, h.State, h.GeneratedPKCECodes)
 	if err != nil {
 		h.ResponseHandler.RespondWithError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	h.ResponseHandler.Respond(w, http.StatusOK, map[string]string{
-		"message": "Spotify login completed, you can close this page now.",
-	})
+	h.renderCallbackPage(w)
 
-	h.SpotifyClientChannel <- client
+	authClient := client.AuthenticatedClient{
+		Client: *cl,
+	}
+
+	h.SpotifyClientChannel <- authClient
+}
+
+func (h *SpotifyAuthCallbackWebHandler) renderCallbackPage(w http.ResponseWriter) {
+	t, _ := template.ParseFS(callbackHTML, "static/callback.html")
+
+	w.Header().Add("Content-Type", "text/html")
+
+	if err := t.Execute(w, nil); err != nil {
+		h.Logger.Error("Error rendering callback page", err, nil)
+	}
 }

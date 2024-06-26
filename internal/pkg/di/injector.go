@@ -4,13 +4,16 @@ import (
 	"time"
 
 	"github.com/dchest/uniuri"
-	"github.com/zmb3/spotify/v2"
 
 	"github.com/mathcale/setlist-to-playlist/config"
 	"github.com/mathcale/setlist-to-playlist/internal/clients/setlistfm"
 	spotify_client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands"
+	rootcmd_gw "github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands/gateways"
+	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence"
+	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence/drivers"
+	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence/strategies/plaintext"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/web"
 	spotify_handlers "github.com/mathcale/setlist-to-playlist/internal/infra/web/handlers/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/httpclient"
@@ -19,6 +22,7 @@ import (
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/responsehandler"
 	setlistfm_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/setlistfm"
 	spotify_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
+	spotify_uc_gw "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify/gateways"
 )
 
 type DependencyInjectorInterface interface {
@@ -26,28 +30,26 @@ type DependencyInjectorInterface interface {
 }
 
 type DependencyInjector struct {
-	Config *config.Config
+	Config      *config.Config
+	ConfigPaths config.ConfigPaths
 }
 
 type Dependencies struct {
-	Logger                        logger.LoggerInterface
-	WebResponseHandler            responsehandler.WebResponseHandlerInterface
-	PKCECodeGenerator             oauth2.PKCECodeGeneratorInterface
-	SetlistFMClient               setlistfm.SetlistFMClientInterface
-	WebServer                     web.WebServerInterface
-	SpotifyAuthCallbackWebHandler spotify_handlers.SpotifyAuthCallbackWebHandlerInterface
-	CLI                           cli.CLIInterface
+	CLI cli.CLIInterface
 }
 
-func NewDependencyInjector(c *config.Config) *DependencyInjector {
+func NewDependencyInjector(c *config.Config, configPaths config.ConfigPaths) *DependencyInjector {
 	return &DependencyInjector{
-		Config: c,
+		Config:      c,
+		ConfigPaths: configPaths,
 	}
 }
 
 func (di *DependencyInjector) Inject() (*Dependencies, error) {
-	ch := make(chan *spotify.Client)
+	ch := make(chan spotify_client.AuthenticatedClient)
 	state := uniuri.New()
+
+	fsDriver := drivers.NewFileSystemDriver()
 
 	pkceGen := oauth2.NewPKCECodeGenerator()
 	genCodes, err := pkceGen.Generate()
@@ -59,28 +61,49 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	responseHandler := responsehandler.NewWebResponseHandler()
 
 	setlistFMHttpClient := httpclient.NewHttpClient(
-		di.Config.SetlistFMAPIBaseURL,
-		time.Duration(di.Config.SetlistFMAPITimeout)*time.Millisecond,
+		di.Config.SetlistFM.BaseURL,
+		time.Duration(di.Config.SetlistFM.Timeout)*time.Millisecond,
 	)
 
 	setlistFMClient := setlistfm.NewSetlistFMClient(
 		setlistFMHttpClient,
-		di.Config.SetlistFMAPIKey,
+		di.Config.SetlistFM.APIKey,
 	)
 
 	spotifyClient := spotify_client.NewSpotifyClient(
 		l,
-		di.Config.SpotifyRedirectURL,
-		di.Config.SpotifyClientID,
-		di.Config.SpotifyClientSecret,
+		di.Config.Spotify.RedirectURL,
+		di.Config.Spotify.ClientID,
+		di.Config.Spotify.ClientSecret,
 	)
 
+	plainTextPersistence := plaintext.NewPlainTextPersistenceStrategy(
+		fsDriver,
+		l,
+		di.ConfigPaths.SpotifyAuthFile,
+	)
+
+	spotifyAuthPersistence := persistence.NewSpotifyAuthPersistence(plainTextPersistence, l)
+
+	spotifyUserAuthenticationUseCaseGateway := spotify_uc_gw.
+		NewSpotifyUserAuthenticationUseCaseGateway(
+			spotifyClient,
+			spotifyAuthPersistence,
+			l,
+			ch,
+		)
+
 	spotifyCallbackUseCase := spotify_ucs.NewSpotifyAuthCallbackUseCase(spotifyClient, l)
-	extractSetlistFMIDFromURLUseCase := setlistfm_ucs.NewExtractIDFromURLUseCase()
 	getSetlistByIDUseCase := setlistfm_ucs.NewGetSetlistByIDUseCase(setlistFMClient)
 	fetchSongsOnSpotifyUseCase := spotify_ucs.NewFetchSongsOnSpotifyUseCase(spotifyClient, l)
+	createPlaylistOnSpotifyUseCase := spotify_ucs.NewCreatePlaylistUseCase(spotifyClient, l)
+	addTracksToSpotifyPlaylistUseCase := spotify_ucs.NewAddTracksToPlaylistUseCase(spotifyClient, l)
+	spotifyUserAuthenticationUseCase := spotify_ucs.NewSpotifyUserAuthenticationUseCase(
+		spotifyUserAuthenticationUseCaseGateway,
+	)
 
 	spotifyCallbackHandler := spotify_handlers.NewSpotifyAuthCallbackWebHandler(
+		l,
 		spotifyCallbackUseCase,
 		responseHandler,
 		*genCodes,
@@ -91,27 +114,24 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	webRouter := web.NewWebRouter(spotifyCallbackHandler)
 	webServer := web.NewWebServer(di.Config.WebServerPort, l, webRouter.Build())
 
-	rootCmd := commands.NewRootCmd(
-		webServer,
+	rootCmdGw := rootcmd_gw.NewRootCmdGateway(
 		l,
+		webServer,
 		spotifyClient,
-		extractSetlistFMIDFromURLUseCase,
 		getSetlistByIDUseCase,
 		fetchSongsOnSpotifyUseCase,
+		createPlaylistOnSpotifyUseCase,
+		addTracksToSpotifyPlaylistUseCase,
+		spotifyUserAuthenticationUseCase,
 		*genCodes,
 		state,
 		ch,
 	)
 
+	rootCmd := commands.NewRootCmd(l, rootCmdGw)
 	cli := cli.NewCLI(rootCmd.Build())
 
 	return &Dependencies{
-		Logger:                        l,
-		WebResponseHandler:            responseHandler,
-		PKCECodeGenerator:             pkceGen,
-		SetlistFMClient:               setlistFMClient,
-		WebServer:                     webServer,
-		SpotifyAuthCallbackWebHandler: spotifyCallbackHandler,
-		CLI:                           cli,
+		CLI: cli,
 	}, nil
 }

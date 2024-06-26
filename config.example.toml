@@ -1,0 +1,9 @@
+[general]
+log_level = "debug"
+
+[setlistfm]
+api_key = ""
+
+[spotify]
+client_id = ""
+client_secret = ""

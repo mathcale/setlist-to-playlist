@@ -19,17 +19,23 @@ type SpotifyClientInterface interface {
 	GetToken(ctx context.Context, r *http.Request, state string, genCodes oauth2util.GenerateOutput) (*oauth2.Token, error)
 	GetAuthURL(state string, genCodes oauth2util.GenerateOutput) string
 	NewAPIClient(ctx context.Context, tok *oauth2.Token) *spotify.Client
-	SetAuthenticatedClient(ch chan *spotify.Client)
+	SetAuthenticatedClient(ch chan AuthenticatedClient)
+	SetAuthenticatedClientFromInstance(client AuthenticatedClient)
 	CurrentUser(ctx context.Context) (*spotify.PrivateUser, error)
 	CurrentSession() (*oauth2.Token, error)
+	RefreshToken(ctx context.Context, tok *oauth2.Token) (*oauth2.Token, error)
 	FindAllSongsByName(ctx context.Context, name []string, artist string) (*entities.FindAllSongsOutput, error)
 	CreatePlaylist(ctx context.Context, title string, description string) (*entities.CreatePlaylistOutput, error)
-	AddTracksToPlaylist(ctx context.Context, playlistID string, songs entities.FindAllSongsOutput) error
+	AddTracksToPlaylist(ctx context.Context, input entities.AddTracksToPlaylistClientInput) error
+}
+
+type AuthenticatedClient struct {
+	spotify.Client
 }
 
 type SpotifyClient struct {
 	Auth                *spotifyauth.Authenticator
-	AuthenticatedClient *spotify.Client
+	AuthenticatedClient AuthenticatedClient
 	Logger              logger.LoggerInterface
 }
 
@@ -46,7 +52,7 @@ func NewSpotifyClient(
 			spotifyauth.WithClientSecret(clientSecret),
 			spotifyauth.WithScopes(spotifyauth.ScopeUserReadEmail, spotifyauth.ScopePlaylistModifyPublic),
 		),
-		AuthenticatedClient: nil,
+		AuthenticatedClient: AuthenticatedClient{},
 		Logger:              logger,
 	}
 }
@@ -82,8 +88,12 @@ func (c *SpotifyClient) NewAPIClient(ctx context.Context, tok *oauth2.Token) *sp
 	return spotify.New(c.Auth.Client(ctx, tok))
 }
 
-func (c *SpotifyClient) SetAuthenticatedClient(ch chan *spotify.Client) {
+func (c *SpotifyClient) SetAuthenticatedClient(ch chan AuthenticatedClient) {
 	c.AuthenticatedClient = <-ch
+}
+
+func (c *SpotifyClient) SetAuthenticatedClientFromInstance(client AuthenticatedClient) {
+	c.AuthenticatedClient = client
 }
 
 func (c *SpotifyClient) CurrentUser(ctx context.Context) (*spotify.PrivateUser, error) {
@@ -92,6 +102,13 @@ func (c *SpotifyClient) CurrentUser(ctx context.Context) (*spotify.PrivateUser, 
 
 func (c *SpotifyClient) CurrentSession() (*oauth2.Token, error) {
 	return c.AuthenticatedClient.Token()
+}
+
+func (c *SpotifyClient) RefreshToken(
+	ctx context.Context,
+	tok *oauth2.Token,
+) (*oauth2.Token, error) {
+	return c.Auth.RefreshToken(ctx, tok)
 }
 
 func (c *SpotifyClient) FindAllSongsByName(
@@ -117,7 +134,6 @@ func (c *SpotifyClient) FindAllSongsByName(
 			spotify.SearchTypeTrack,
 			spotify.Limit(1),
 		)
-
 		if err != nil {
 			c.Logger.Error("Failed to search for track", err, map[string]interface{}{
 				"query": q,
@@ -178,21 +194,14 @@ func (c *SpotifyClient) CreatePlaylist(
 
 func (c *SpotifyClient) AddTracksToPlaylist(
 	ctx context.Context,
-	playlistID string,
-	songs entities.FindAllSongsOutput,
+	input entities.AddTracksToPlaylistClientInput,
 ) error {
-	songIDs := make([]spotify.ID, len(songs.Songs))
-
-	for i, s := range songs.Songs {
-		songIDs[i] = spotify.ID(s.ID)
-	}
-
 	c.Logger.Debug("Adding tracks to playlist...", map[string]interface{}{
-		"playlistID": playlistID,
-		"songIDs":    songIDs,
+		"playlist_id": input.PlaylistID,
+		"song_ids":    input.Tracks,
 	})
 
-	if _, err := c.AuthenticatedClient.AddTracksToPlaylist(ctx, spotify.ID(playlistID), songIDs...); err != nil {
+	if _, err := c.AuthenticatedClient.AddTracksToPlaylist(ctx, input.GetPlaylistID(), input.GetTrackIDs()...); err != nil {
 		return err
 	}
 
