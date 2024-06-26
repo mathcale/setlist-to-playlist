@@ -25,3 +25,4 @@ jobs:
         binary_name: "setlist-to-playlist"
         build_flags: "-trimpath"
         ldflags: "-w -s -buildid="
+        extra_files: LICENSE README.md
