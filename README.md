@@ -2,6 +2,8 @@
 
 Cool CLI that creates a Spotify playlist based on a Setlist.fm entry, written in Go.
 
+[![Continuous Integration](https://github.com/mathcale/setlist-to-playlist/actions/workflows/ci.yaml/badge.svg)](https://github.com/mathcale/setlist-to-playlist/actions/workflows/ci.yaml)
+
 ## Usage
 
 Just run the following command, replacing the URL with the one you want to create a playlist from:
