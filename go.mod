@@ -2,6 +2,10 @@ module github.com/mathcale/setlist-to-playlist
 
 go 1.22.3
 
+retract (
+	v1.0.0
+)
+
 require (
 	github.com/charmbracelet/huh v0.4.2
 	github.com/dchest/uniuri v1.2.0
