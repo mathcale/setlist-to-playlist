@@ -9,6 +9,7 @@ import (
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/semaphore"
 
 	entities "github.com/mathcale/setlist-to-playlist/internal/entities/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
@@ -37,6 +38,10 @@ type SpotifyClient struct {
 	Auth                *spotifyauth.Authenticator
 	AuthenticatedClient AuthenticatedClient
 	Logger              logger.LoggerInterface
+}
+
+type FindSongJob struct {
+	Songs []string
 }
 
 func NewSpotifyClient(
@@ -113,50 +118,63 @@ func (c *SpotifyClient) RefreshToken(
 
 func (c *SpotifyClient) FindAllSongsByName(
 	ctx context.Context,
-	name []string,
+	songNames []string,
 	artist string,
 ) (*entities.FindAllSongsOutput, error) {
-	// TODO: use goroutines to search for each song in parallel
 	result := &entities.FindAllSongsOutput{
 		Artist: artist,
 	}
 
-	for _, n := range name {
-		q := fmt.Sprintf(`"%s"%%20artist:%s`, strings.ToLower(n), strings.ToLower(artist))
+	maxConcurrency := int64(5)
+	sem := semaphore.NewWeighted(maxConcurrency)
 
-		c.Logger.Debug("Searching for track", map[string]interface{}{
-			"query": q,
-		})
+	for _, n := range songNames {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			c.Logger.Error("Failed to acquire semaphore", err, nil)
+			continue
+		}
 
-		res, err := c.AuthenticatedClient.Search(
-			ctx,
-			q,
-			spotify.SearchTypeTrack,
-			spotify.Limit(1),
-		)
-		if err != nil {
-			c.Logger.Error("Failed to search for track", err, map[string]interface{}{
+		go func(song string) {
+			defer sem.Release(1)
+
+			q := fmt.Sprintf(`"%s"%%20artist:"%s"`, strings.ToLower(n), strings.ToLower(artist))
+
+			c.Logger.Debug("Searching for track", map[string]interface{}{
 				"query": q,
 			})
 
-			return nil, err
-		}
-
-		if res.Tracks != nil {
-			song := entities.Song{
-				ID:    res.Tracks.Tracks[0].ID.String(),
-				Title: res.Tracks.Tracks[0].Name,
-				Album: res.Tracks.Tracks[0].Album.Name,
+			res, err := c.AuthenticatedClient.Search(
+				ctx,
+				q,
+				spotify.SearchTypeTrack,
+				spotify.Limit(1),
+			)
+			if err != nil {
+				c.Logger.Error("Failed to search for track", err, map[string]interface{}{
+					"query": q,
+				})
 			}
 
-			c.Logger.Debug("Found track", map[string]interface{}{
-				"id":    song.ID,
-				"track": song.Title,
-				"album": song.Album,
-			})
+			if res.Tracks != nil {
+				song := entities.Song{
+					ID:    res.Tracks.Tracks[0].ID.String(),
+					Title: res.Tracks.Tracks[0].Name,
+					Album: res.Tracks.Tracks[0].Album.Name,
+				}
 
-			result.Songs = append(result.Songs, song)
-		}
+				c.Logger.Debug("Found track", map[string]interface{}{
+					"id":    song.ID,
+					"track": song.Title,
+					"album": song.Album,
+				})
+
+				result.AddSong(song)
+			}
+		}(n)
+	}
+
+	if err := sem.Acquire(ctx, maxConcurrency); err != nil {
+		c.Logger.Error("Failed to acquire semaphore while waiting", err, nil)
 	}
 
 	return result, nil

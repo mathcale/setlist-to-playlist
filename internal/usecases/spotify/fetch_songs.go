@@ -39,9 +39,15 @@ func (uc *FetchSongsOnSpotifyUseCase) Execute(
 		return nil, err
 	}
 
-	uc.Logger.Debug("Songs fetched on Spotify", map[string]interface{}{
-		"songs": output,
+	uc.Logger.Debug("Original songs", map[string]interface{}{
+		"songs": songs,
 	})
+
+	uc.Logger.Debug("Songs fetched from Spotify", map[string]interface{}{
+		"output.songs": output.Songs,
+	})
+
+	output.SortSongs(songs)
 
 	return output, nil
 }
