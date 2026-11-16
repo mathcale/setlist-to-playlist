@@ -163,6 +163,74 @@ func (s *RootCmdGatewayTestSuite) TestAuthenticate() {
 	})
 }
 
+func (s *RootCmdGatewayTestSuite) TestDispatchWithBothProvidersRegistered() {
+	type pair struct {
+		provider *mocks.MusicProviderMock
+		auth     *mocks.AuthenticatorMock
+	}
+
+	setup := func() (RootCmdGatewayInterface, map[music.ProviderID]*pair) {
+		pairs := map[music.ProviderID]*pair{
+			music.ProviderSpotify:    {new(mocks.MusicProviderMock), new(mocks.AuthenticatorMock)},
+			music.ProviderAppleMusic: {new(mocks.MusicProviderMock), new(mocks.AuthenticatorMock)},
+		}
+
+		registry := music.NewProviderRegistry().
+			Register(music.ProviderSpotify, pairs[music.ProviderSpotify].provider, pairs[music.ProviderSpotify].auth).
+			Register(music.ProviderAppleMusic, pairs[music.ProviderAppleMusic].provider, pairs[music.ProviderAppleMusic].auth)
+
+		logger := new(mocks.LoggerMock)
+		logger.On("Debug", mock.Anything, mock.Anything).Return()
+		logger.On("Info", mock.Anything, mock.Anything).Return()
+
+		return NewRootCmdGateway(logger, registry, s.GetSetlistByIDUseCaseMock), pairs
+	}
+
+	other := func(id music.ProviderID) music.ProviderID {
+		if id == music.ProviderSpotify {
+			return music.ProviderAppleMusic
+		}
+
+		return music.ProviderSpotify
+	}
+
+	for _, id := range []music.ProviderID{music.ProviderSpotify, music.ProviderAppleMusic} {
+		s.Run("Should route "+string(id)+" only to its own pair", func() {
+			gw, pairs := setup()
+			own, foreign := pairs[id], pairs[other(id)]
+
+			own.auth.On("Authenticate", mock.Anything).Return(nil)
+			own.provider.
+				On("SearchCandidates", mock.Anything, "song", "artist").
+				Return([]music.Candidate{{
+					TrackID: "id-1", Title: "song", Artist: "artist",
+					Album: "album", AlbumType: music.AlbumTypeAlbum,
+				}}, nil)
+			own.provider.
+				On("CreatePlaylist", mock.Anything, "name", mock.Anything).
+				Return(&music.Playlist{ID: "pl", URL: "url"}, nil)
+			own.provider.On("AddTracks", mock.Anything, "pl", []string{"id-1"}).Return(nil)
+
+			s.NoError(gw.Authenticate(context.Background(), id))
+
+			out, err := gw.FetchSongs(context.Background(), id, []string{"song"}, "artist")
+			s.NoError(err)
+
+			url, err := gw.CreatePlaylist(context.Background(), id, "name", out.Songs)
+			s.NoError(err)
+			s.Equal("url", *url)
+
+			own.auth.AssertNumberOfCalls(s.T(), "Authenticate", 1)
+			own.provider.AssertNumberOfCalls(s.T(), "SearchCandidates", 1)
+			own.provider.AssertNumberOfCalls(s.T(), "CreatePlaylist", 1)
+			own.provider.AssertNumberOfCalls(s.T(), "AddTracks", 1)
+
+			s.Empty(foreign.auth.Calls)
+			s.Empty(foreign.provider.Calls)
+		})
+	}
+}
+
 func (s *RootCmdGatewayTestSuite) TestFetchSongs() {
 	s.Run("Should search on the chosen provider and return the best matches", func() {
 		defer s.cleanMocks()
