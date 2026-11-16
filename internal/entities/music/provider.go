@@ -85,3 +85,17 @@ func (r *ProviderRegistry) Lookup(id ProviderID) (ProviderEntry, error) {
 
 	return e, nil
 }
+
+// CredentialsHelp explains how to get fresh credentials for the provider. It
+// is shown when re-authenticating did not fix an expired-credentials error.
+func (id ProviderID) CredentialsHelp() string {
+	switch id {
+	case ProviderAppleMusic:
+		return "get new tokens from https://music.apple.com (signed in): " +
+			"the bearer token is the Authorization request header of any request to amp-api.music.apple.com " +
+			"in devtools > Network (without the \"Bearer \" prefix), and the media-user-token is the cookie of the same " +
+			"name in devtools > Application/Storage > Cookies > https://music.apple.com"
+	default:
+		return "re-run the command to authenticate again"
+	}
+}

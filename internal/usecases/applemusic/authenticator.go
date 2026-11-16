@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/mathcale/setlist-to-playlist/internal/entities/applemusic"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
@@ -41,7 +42,17 @@ func NewAuthenticator(
 }
 
 func (a *Authenticator) Authenticate(ctx context.Context) error {
-	auth, err := a.load()
+	return a.authenticate(ctx, false)
+}
+
+// Reauthenticate ignores the saved tokens: it asks for new ones, saves them
+// and validates them.
+func (a *Authenticator) Reauthenticate(ctx context.Context) error {
+	return a.authenticate(ctx, true)
+}
+
+func (a *Authenticator) authenticate(ctx context.Context, fresh bool) error {
+	auth, err := a.load(fresh)
 	if err != nil {
 		return err
 	}
@@ -59,9 +70,11 @@ func (a *Authenticator) Authenticate(ctx context.Context) error {
 }
 
 // load returns saved tokens, or asks for and saves them when missing.
-func (a *Authenticator) load() (*applemusic.AuthData, error) {
-	if saved, err := a.persistence.Read(); err == nil && saved.Validate() == nil {
-		return saved, nil
+func (a *Authenticator) load(fresh bool) (*applemusic.AuthData, error) {
+	if !fresh {
+		if saved, err := a.persistence.Read(); err == nil && saved.Validate() == nil {
+			return saved, nil
+		}
 	}
 
 	bearer, err := a.prompter.Secret("What's your Apple Music web-player bearer token?")
@@ -75,7 +88,7 @@ func (a *Authenticator) load() (*applemusic.AuthData, error) {
 	}
 
 	auth := applemusic.AuthData{
-		BearerToken:    strings.TrimSpace(bearer),
+		BearerToken:    stripBearerPrefix(bearer),
 		MediaUserToken: strings.TrimSpace(mediaUserToken),
 	}
 
@@ -88,4 +101,16 @@ func (a *Authenticator) load() (*applemusic.AuthData, error) {
 	}
 
 	return &auth, nil
+}
+
+// stripBearerPrefix trims whitespace and a leading "Bearer " (any case), since
+// users tend to paste the whole Authorization header value.
+func stripBearerPrefix(s string) string {
+	s = strings.TrimSpace(s)
+	const prefix = "bearer"
+	if len(s) > len(prefix) && strings.EqualFold(s[:len(prefix)], prefix) && unicode.IsSpace(rune(s[len(prefix)])) {
+		s = strings.TrimSpace(s[len(prefix):])
+	}
+
+	return s
 }

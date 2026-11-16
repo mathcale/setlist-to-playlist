@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,8 +12,49 @@ import (
 
 	"github.com/mathcale/setlist-to-playlist/internal/entities/applemusic"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
+	"github.com/mathcale/setlist-to-playlist/internal/pkg/httpclient"
 	"github.com/mathcale/setlist-to-playlist/internal/tests/mocks"
 )
+
+func TestCredentialsExpiredMapping(t *testing.T) {
+	ctx := context.Background()
+	calls := map[string]func(c *Client) error{
+		"storefront": func(c *Client) error { _, err := c.Storefront(ctx); return err },
+		"search":     func(c *Client) error { _, err := c.SearchCandidates(ctx, "t", "a"); return err },
+		"create playlist": func(c *Client) error {
+			_, err := c.CreatePlaylist(ctx, "t", "d")
+			return err
+		},
+		"add tracks": func(c *Client) error { return c.AddTracks(ctx, "p", []string{"1"}) },
+	}
+
+	for name, call := range calls {
+		for _, code := range []int{401, 403, 500} {
+			t.Run(fmt.Sprintf("%s %d", name, code), func(t *testing.T) {
+				h := new(mocks.HttpClientMock)
+				statusErr := &httpclient.StatusError{StatusCode: code}
+				h.On("Get", mock.Anything, mock.Anything, mock.Anything).Return(statusErr)
+				h.On("Post", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(statusErr)
+
+				c := newClient(h)
+				if name != "storefront" {
+					// seed the cache so the call's own request is the one that fails
+					c.storefront = "us"
+				}
+
+				err := call(c)
+
+				if code == 500 {
+					assert.False(t, errors.Is(err, music.ErrCredentialsExpired))
+					assert.Equal(t, statusErr, err)
+					return
+				}
+
+				assert.ErrorIs(t, err, music.ErrCredentialsExpired)
+			})
+		}
+	}
+}
 
 func newClient(h *mocks.HttpClientMock) *Client {
 	c := NewClient(h)

@@ -72,7 +72,13 @@ func (gw *RootCmdGateway) Authenticate(ctx context.Context, id music.ProviderID)
 		return err
 	}
 
-	return entry.Authenticator.Authenticate(ctx)
+	return music_ucs.NewRecovery(entry.Authenticator, gw.Logger, id).Authenticate(ctx)
+}
+
+// recovering wraps the provider so each call recovers once from expired
+// credentials (re-authenticate, then retry just that call).
+func (gw *RootCmdGateway) recovering(entry music.ProviderEntry, id music.ProviderID) music.MusicProvider {
+	return music_ucs.NewRecoveringProvider(entry.Provider, music_ucs.NewRecovery(entry.Authenticator, gw.Logger, id))
 }
 
 func (gw *RootCmdGateway) FetchSongs(
@@ -86,7 +92,7 @@ func (gw *RootCmdGateway) FetchSongs(
 		return nil, err
 	}
 
-	return music_ucs.NewFetchSongsUseCase(entry.Provider, gw.Logger).Execute(ctx, songTitles, artist)
+	return music_ucs.NewFetchSongsUseCase(gw.recovering(entry, id), gw.Logger).Execute(ctx, songTitles, artist)
 }
 
 func (gw *RootCmdGateway) CreatePlaylist(
@@ -100,7 +106,7 @@ func (gw *RootCmdGateway) CreatePlaylist(
 		return nil, err
 	}
 
-	createPlaylistOut, err := music_ucs.NewCreatePlaylistUseCase(entry.Provider, gw.Logger).Execute(
+	createPlaylistOut, err := music_ucs.NewCreatePlaylistUseCase(gw.recovering(entry, id), gw.Logger).Execute(
 		ctx,
 		music.CreatePlaylistInput{
 			Title:       playlistName,
@@ -116,7 +122,7 @@ func (gw *RootCmdGateway) CreatePlaylist(
 		"playlistURL": createPlaylistOut.URL,
 	})
 
-	if err := music_ucs.NewAddTracksUseCase(entry.Provider, gw.Logger).Execute(
+	if err := music_ucs.NewAddTracksUseCase(gw.recovering(entry, id), gw.Logger).Execute(
 		ctx,
 		music.AddTracksInput{
 			PlaylistID: createPlaylistOut.ID,

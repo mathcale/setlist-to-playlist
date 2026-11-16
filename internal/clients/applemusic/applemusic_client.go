@@ -3,6 +3,8 @@ package applemusic
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -58,6 +60,17 @@ func (c *Client) headers() map[string]interface{} {
 	}
 }
 
+// mapErr turns 401/403 responses into music.ErrCredentialsExpired; any other
+// error is returned untouched.
+func mapErr(err error) error {
+	var se *httpclient.StatusError
+	if errors.As(err, &se) && (se.StatusCode == http.StatusUnauthorized || se.StatusCode == http.StatusForbidden) {
+		return fmt.Errorf("%w: apple music responded with HTTP %d", music.ErrCredentialsExpired, se.StatusCode)
+	}
+
+	return err
+}
+
 // Storefront returns the user's storefront (e.g. "us"), fetching it on the
 // first call and reusing it for the rest of the run.
 func (c *Client) Storefront(_ context.Context) (string, error) {
@@ -70,7 +83,7 @@ func (c *Client) Storefront(_ context.Context) (string, error) {
 
 	var resp storefrontResponse
 	if err := c.httpClient.Get(StorefrontPath, c.headers(), &resp); err != nil {
-		return "", err
+		return "", mapErr(err)
 	}
 
 	if len(resp.Data) == 0 || resp.Data[0].ID == "" {
@@ -153,7 +166,7 @@ func (c *Client) SearchCandidates(ctx context.Context, title string, artist stri
 	if err := c.httpClient.Get(
 		"/v1/catalog/"+url.PathEscape(storefront)+"/search?"+q.Encode(), c.headers(), &resp,
 	); err != nil {
-		return nil, err
+		return nil, mapErr(err)
 	}
 
 	candidates := []music.Candidate{}
@@ -197,7 +210,7 @@ func (c *Client) CreatePlaylist(_ context.Context, title string, description str
 
 	var resp createPlaylistResponse
 	if err := c.httpClient.Post("/v1/me/library/playlists", c.headers(), body, &resp); err != nil {
-		return nil, err
+		return nil, mapErr(err)
 	}
 
 	if len(resp.Data) == 0 || resp.Data[0].ID == "" {
@@ -222,5 +235,5 @@ func (c *Client) AddTracks(_ context.Context, playlistID string, trackIDs []stri
 		body.Data = append(body.Data, trackRef{ID: id, Type: "songs"})
 	}
 
-	return c.httpClient.Post("/v1/me/library/playlists/"+url.PathEscape(playlistID)+"/tracks", c.headers(), body, nil)
+	return mapErr(c.httpClient.Post("/v1/me/library/playlists/"+url.PathEscape(playlistID)+"/tracks", c.headers(), body, nil))
 }
