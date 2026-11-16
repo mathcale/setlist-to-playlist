@@ -41,7 +41,7 @@ func TestMusicUseCases(t *testing.T) {
 func (s *MusicUseCasesTestSuite) TestFetchSongs() {
 	ctx := context.Background()
 
-	s.Run("takes the first candidate of each song, keeping setlist order", func() {
+	s.Run("picks the best candidate of each song, keeping setlist order", func() {
 		s.ProviderMock.On("SearchCandidates", mock.Anything, "a", "artist").Return([]music.Candidate{
 			{TrackID: "a1", Title: "A", Artist: "artist", Album: "Album A", AlbumType: music.AlbumTypeAlbum},
 			{TrackID: "a2", Title: "A (Live)", Artist: "artist", Album: "Live", AlbumType: music.AlbumTypeSingle},
