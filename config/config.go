@@ -4,10 +4,10 @@ import (
 	"os"
 	"path"
 
-	"github.com/charmbracelet/huh"
 	"github.com/spf13/viper"
 
 	"github.com/mathcale/setlist-to-playlist/internal/infra/persistence/drivers"
+	"github.com/mathcale/setlist-to-playlist/internal/pkg/prompter"
 )
 
 type General struct {
@@ -68,7 +68,7 @@ func Init() (*ConfigPaths, error) {
 	}, nil
 }
 
-func Load(configPaths ConfigPaths) (*Config, error) {
+func Load(configPaths ConfigPaths, p prompter.Prompter) (*Config, error) {
 	var c *Config
 
 	viper.WatchConfig()
@@ -89,24 +89,30 @@ func Load(configPaths ConfigPaths) (*Config, error) {
 	}
 
 	if ok := viper.IsSet("setlistfm.api_key"); !ok {
-		var apiKey string
-		huh.NewInput().Title("What's your Setlist.fm API key?").Prompt(">").Value(&apiKey).Run()
+		apiKey, err := p.Text("What's your Setlist.fm API key?")
+		if err != nil {
+			return nil, err
+		}
 
 		viper.Set("setlistfm.api_key", apiKey)
 		viper.WriteConfig()
 	}
 
 	if ok := viper.IsSet("spotify.client_id"); !ok {
-		var clientID string
-		huh.NewInput().Title("What's your Spotify client ID?").Prompt(">").Value(&clientID).Run()
+		clientID, err := p.Text("What's your Spotify client ID?")
+		if err != nil {
+			return nil, err
+		}
 
 		viper.Set("spotify.client_id", clientID)
 		viper.WriteConfig()
 	}
 
 	if ok := viper.IsSet("spotify.client_secret"); !ok {
-		var secret string
-		huh.NewInput().Title("What's your Spotify client secret?").Prompt(">").Value(&secret).Run()
+		secret, err := p.Text("What's your Spotify client secret?")
+		if err != nil {
+			return nil, err
+		}
 
 		viper.Set("spotify.client_secret", secret)
 		viper.WriteConfig()
