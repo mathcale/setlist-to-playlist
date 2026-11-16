@@ -10,3 +10,8 @@ func (m *HttpClientMock) Get(url string, headers map[string]interface{}, respons
 	args := m.Called(url, headers, response)
 	return args.Error(0)
 }
+
+func (m *HttpClientMock) Post(url string, headers map[string]interface{}, body interface{}, response interface{}) error {
+	args := m.Called(url, headers, body, response)
+	return args.Error(0)
+}
