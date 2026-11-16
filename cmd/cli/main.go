@@ -6,6 +6,7 @@ import (
 
 	"github.com/mathcale/setlist-to-playlist/config"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/di"
+	"github.com/mathcale/setlist-to-playlist/internal/pkg/prompter"
 )
 
 func main() {
@@ -14,7 +15,7 @@ func main() {
 		log.Fatalf("There was an error while initializing config: %s", err)
 	}
 
-	cfg, err := config.Load(*configPaths)
+	cfg, err := config.Load(*configPaths, prompter.NewHuhPrompter())
 	if err != nil {
 		log.Fatalf("There was an error while loading config: %s", err)
 	}
