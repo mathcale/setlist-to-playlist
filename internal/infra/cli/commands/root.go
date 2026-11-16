@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -51,24 +52,28 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rc.Gateway.StartWebServer()
-
-	if err := rc.Gateway.HandleSpotifyAuthentication(cmd.Context()); err != nil {
+	if err := rc.Gateway.Authenticate(cmd.Context()); err != nil {
 		rc.Logger.Error("Failed to authenticate on Spotify", err, nil)
 		return err
 	}
 
 	rc.Logger.Info("Fetching songs on Spotify...", nil)
 
-	songs, err := rc.Gateway.FetchSongsOnSpotify(cmd.Context(), set.Songs(), set.ArtistName())
+	songs, err := rc.Gateway.FetchSongs(cmd.Context(), set.Songs(), set.ArtistName())
 	if err != nil {
 		rc.Logger.Error("Failed to fetch songs from Spotify", err, nil)
 		return err
 	}
 
+	if len(songs.Skipped) > 0 {
+		rc.Logger.Warn("Some songs were not found and were skipped", map[string]interface{}{
+			"skipped": strings.Join(songs.Skipped, ", "),
+		})
+	}
+
 	rc.Logger.Info("Creating playlist...", nil)
 
-	playlistURL, err := rc.Gateway.CreatePlaylistOnSpotify(cmd.Context(), set.Title(), songs.Songs)
+	playlistURL, err := rc.Gateway.CreatePlaylist(cmd.Context(), set.Title(), songs.Songs)
 	if err != nil {
 		rc.Logger.Error("Failed to create playlist on Spotify", err, nil)
 		return err

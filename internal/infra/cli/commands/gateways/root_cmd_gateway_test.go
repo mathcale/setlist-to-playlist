@@ -8,78 +8,54 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	spotifyclient "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
+	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/setlistfm"
-	spotifyentities "github.com/mathcale/setlist-to-playlist/internal/entities/spotify"
-	oauth2util "github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 	"github.com/mathcale/setlist-to-playlist/internal/tests/mocks"
 )
 
 type RootCmdGatewayTestSuite struct {
 	suite.Suite
-	LoggerMock                            *mocks.LoggerMock
-	WebServerMock                         *mocks.WebServerMock
-	SpotifyClientMock                     *mocks.SpotifyClientMock
-	GetSetlistByIDUseCaseMock             *mocks.SetlistFMGetSetlistByIDUseCaseMock
-	FetchSongsOnSpotifyUseCaseMock        *mocks.FetchSongsOnSpotifyUseCaseMock
-	CreatePlaylistOnSpotifyUseCaseMock    *mocks.CreatePlaylistOnSpotifyUseCaseMock
-	AddTracksToSpotifyPlaylistUseCaseMock *mocks.AddTracksToSpotifyPlaylistUseCaseMock
-	SpotifyUserAuthenticationUseCaseMock  *mocks.SpotifyUserAuthenticationUseCaseMock
-	GeneratedPKCECodes                    oauth2util.GenerateOutput
-	State                                 string
-	SpotifyClientChannel                  chan spotifyclient.AuthenticatedClient
+	LoggerMock                *mocks.LoggerMock
+	AuthenticatorMock         *mocks.AuthenticatorMock
+	GetSetlistByIDUseCaseMock *mocks.SetlistFMGetSetlistByIDUseCaseMock
+	FetchSongsUseCaseMock     *mocks.FetchSongsUseCaseMock
+	CreatePlaylistUseCaseMock *mocks.CreatePlaylistUseCaseMock
+	AddTracksUseCaseMock      *mocks.AddTracksUseCaseMock
 
 	Gateway RootCmdGatewayInterface
 }
 
 func (s *RootCmdGatewayTestSuite) SetupTest() {
 	s.LoggerMock = new(mocks.LoggerMock)
-	s.WebServerMock = new(mocks.WebServerMock)
-	s.SpotifyClientMock = new(mocks.SpotifyClientMock)
+	s.AuthenticatorMock = new(mocks.AuthenticatorMock)
 	s.GetSetlistByIDUseCaseMock = new(mocks.SetlistFMGetSetlistByIDUseCaseMock)
-	s.FetchSongsOnSpotifyUseCaseMock = new(mocks.FetchSongsOnSpotifyUseCaseMock)
-	s.CreatePlaylistOnSpotifyUseCaseMock = new(mocks.CreatePlaylistOnSpotifyUseCaseMock)
-	s.AddTracksToSpotifyPlaylistUseCaseMock = new(mocks.AddTracksToSpotifyPlaylistUseCaseMock)
-	s.SpotifyUserAuthenticationUseCaseMock = new(mocks.SpotifyUserAuthenticationUseCaseMock)
-	s.GeneratedPKCECodes = oauth2util.GenerateOutput{
-		CodeChallenge: "any-code-challenge",
-		CodeVerifier:  "any-code-verifier",
-	}
-	s.State = "any-state"
-	s.SpotifyClientChannel = make(chan spotifyclient.AuthenticatedClient)
+	s.FetchSongsUseCaseMock = new(mocks.FetchSongsUseCaseMock)
+	s.CreatePlaylistUseCaseMock = new(mocks.CreatePlaylistUseCaseMock)
+	s.AddTracksUseCaseMock = new(mocks.AddTracksUseCaseMock)
 
 	s.Gateway = NewRootCmdGateway(
 		s.LoggerMock,
-		s.WebServerMock,
-		s.SpotifyClientMock,
+		s.AuthenticatorMock,
 		s.GetSetlistByIDUseCaseMock,
-		s.FetchSongsOnSpotifyUseCaseMock,
-		s.CreatePlaylistOnSpotifyUseCaseMock,
-		s.AddTracksToSpotifyPlaylistUseCaseMock,
-		s.SpotifyUserAuthenticationUseCaseMock,
-		s.GeneratedPKCECodes,
-		s.State,
-		s.SpotifyClientChannel,
+		s.FetchSongsUseCaseMock,
+		s.CreatePlaylistUseCaseMock,
+		s.AddTracksUseCaseMock,
 	)
 }
 
 func (s *RootCmdGatewayTestSuite) cleanMocks() {
 	s.LoggerMock.ExpectedCalls = nil
 	s.LoggerMock.Calls = nil
-	s.WebServerMock.ExpectedCalls = nil
-	s.WebServerMock.Calls = nil
-	s.SpotifyClientMock.ExpectedCalls = nil
-	s.SpotifyClientMock.Calls = nil
+	s.AuthenticatorMock.ExpectedCalls = nil
+	s.AuthenticatorMock.Calls = nil
 	s.GetSetlistByIDUseCaseMock.ExpectedCalls = nil
 	s.GetSetlistByIDUseCaseMock.Calls = nil
-	s.FetchSongsOnSpotifyUseCaseMock.ExpectedCalls = nil
-	s.FetchSongsOnSpotifyUseCaseMock.Calls = nil
-	s.CreatePlaylistOnSpotifyUseCaseMock.ExpectedCalls = nil
-	s.CreatePlaylistOnSpotifyUseCaseMock.Calls = nil
-	s.AddTracksToSpotifyPlaylistUseCaseMock.ExpectedCalls = nil
-	s.AddTracksToSpotifyPlaylistUseCaseMock.Calls = nil
-	s.SpotifyUserAuthenticationUseCaseMock.ExpectedCalls = nil
-	s.SpotifyUserAuthenticationUseCaseMock.Calls = nil
+	s.FetchSongsUseCaseMock.ExpectedCalls = nil
+	s.FetchSongsUseCaseMock.Calls = nil
+	s.CreatePlaylistUseCaseMock.ExpectedCalls = nil
+	s.CreatePlaylistUseCaseMock.Calls = nil
+	s.AddTracksUseCaseMock.ExpectedCalls = nil
+	s.AddTracksUseCaseMock.Calls = nil
 }
 
 func TestRootCmdGateway(t *testing.T) {
@@ -147,51 +123,36 @@ func (s *RootCmdGatewayTestSuite) TestGetTracksFromSetlist() {
 	})
 }
 
-func (s *RootCmdGatewayTestSuite) TestStartWebServer() {
-	s.Run("Should start the web server", func() {
+func (s *RootCmdGatewayTestSuite) TestAuthenticate() {
+	s.Run("Should delegate to the Authenticator", func() {
 		defer s.cleanMocks()
 
-		s.WebServerMock.On("Start").Return()
+		s.AuthenticatorMock.On("Authenticate", mock.Anything).Return(nil)
 
-		s.Gateway.StartWebServer()
-
-		s.WebServerMock.AssertCalled(s.T(), "Start")
-	})
-}
-
-func (s *RootCmdGatewayTestSuite) TestHandleSpotifyAuthentication() {
-	s.Run("Should handle Spotify authentication", func() {
-		defer s.cleanMocks()
-
-		s.SpotifyUserAuthenticationUseCaseMock.
-			On("Execute", mock.Anything, s.GeneratedPKCECodes, s.State).
-			Return(nil)
-
-		err := s.Gateway.HandleSpotifyAuthentication(context.Background())
+		err := s.Gateway.Authenticate(context.Background())
 
 		s.NoError(err)
+		s.AuthenticatorMock.AssertNumberOfCalls(s.T(), "Authenticate", 1)
 	})
 
-	s.Run("Should return an error when failing to authenticate on Spotify", func() {
+	s.Run("Should return an error when authentication fails", func() {
 		defer s.cleanMocks()
 
-		s.SpotifyUserAuthenticationUseCaseMock.
-			On("Execute", mock.Anything, s.GeneratedPKCECodes, s.State).
-			Return(errors.New("any-error"))
+		s.AuthenticatorMock.On("Authenticate", mock.Anything).Return(errors.New("any-error"))
 
-		err := s.Gateway.HandleSpotifyAuthentication(context.Background())
+		err := s.Gateway.Authenticate(context.Background())
 
 		s.Error(err)
 	})
 }
 
-func (s *RootCmdGatewayTestSuite) TestFetchSongsOnSpotify() {
+func (s *RootCmdGatewayTestSuite) TestFetchSongs() {
 	s.Run("Should fetch songs on Spotify", func() {
 		defer s.cleanMocks()
 
-		expected := &spotifyentities.FindAllSongsOutput{
+		expected := &music.FetchSongsOutput{
 			Artist: "any-artist",
-			Songs: []spotifyentities.Song{
+			Songs: []music.Song{
 				{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
 				{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
 				{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
@@ -200,11 +161,11 @@ func (s *RootCmdGatewayTestSuite) TestFetchSongsOnSpotify() {
 
 		songs := []string{"any-song-1", "any-song-2", "any-song-3"}
 
-		s.FetchSongsOnSpotifyUseCaseMock.
+		s.FetchSongsUseCaseMock.
 			On("Execute", mock.Anything, mock.Anything, mock.Anything).
 			Return(expected, nil)
 
-		result, err := s.Gateway.FetchSongsOnSpotify(context.Background(), songs, "any-artist")
+		result, err := s.Gateway.FetchSongs(context.Background(), songs, "any-artist")
 
 		s.NoError(err)
 		s.Equal(expected, result)
@@ -215,43 +176,43 @@ func (s *RootCmdGatewayTestSuite) TestFetchSongsOnSpotify() {
 
 		songs := []string{"any-song-1", "any-song-2", "any-song-3"}
 
-		s.FetchSongsOnSpotifyUseCaseMock.
+		s.FetchSongsUseCaseMock.
 			On("Execute", mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, errors.New("any-error"))
 
-		_, err := s.Gateway.FetchSongsOnSpotify(context.Background(), songs, "any-artist")
+		_, err := s.Gateway.FetchSongs(context.Background(), songs, "any-artist")
 
 		s.Error(err)
 	})
 }
 
-func (s *RootCmdGatewayTestSuite) TestCreatePlaylistOnSpotify() {
+func (s *RootCmdGatewayTestSuite) TestCreatePlaylist() {
 	s.Run("Should create a playlist on Spotify", func() {
 		defer s.cleanMocks()
 
 		ctx := context.Background()
 
-		expected := &spotifyentities.CreatePlaylistOutput{
+		expected := &music.Playlist{
 			ID:  "any-playlist-id",
 			URL: "https://open.spotify.com/playlist/any-playlist-id",
 		}
 
-		songs := []spotifyentities.Song{
+		songs := []music.Song{
 			{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
 			{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
 			{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
 		}
 
 		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return(nil)
-		s.CreatePlaylistOnSpotifyUseCaseMock.
+		s.CreatePlaylistUseCaseMock.
 			On("Execute", mock.Anything, mock.Anything).
 			Return(expected, nil)
 
-		s.AddTracksToSpotifyPlaylistUseCaseMock.
+		s.AddTracksUseCaseMock.
 			On("Execute", mock.Anything, mock.Anything).
 			Return(nil)
 
-		result, err := s.Gateway.CreatePlaylistOnSpotify(ctx, "any-playlist-name", songs)
+		result, err := s.Gateway.CreatePlaylist(ctx, "any-playlist-name", songs)
 
 		s.NoError(err)
 		s.Equal(expected.URL, *result)
@@ -262,17 +223,17 @@ func (s *RootCmdGatewayTestSuite) TestCreatePlaylistOnSpotify() {
 
 		ctx := context.Background()
 
-		songs := []spotifyentities.Song{
+		songs := []music.Song{
 			{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
 			{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
 			{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
 		}
 
-		s.CreatePlaylistOnSpotifyUseCaseMock.
+		s.CreatePlaylistUseCaseMock.
 			On("Execute", mock.Anything, mock.Anything).
 			Return(nil, errors.New("any-error"))
 
-		_, err := s.Gateway.CreatePlaylistOnSpotify(ctx, "any-playlist-name", songs)
+		_, err := s.Gateway.CreatePlaylist(ctx, "any-playlist-name", songs)
 
 		s.Error(err)
 		s.ErrorContains(err, "any-error")
@@ -283,27 +244,27 @@ func (s *RootCmdGatewayTestSuite) TestCreatePlaylistOnSpotify() {
 
 		ctx := context.Background()
 
-		expected := &spotifyentities.CreatePlaylistOutput{
+		expected := &music.Playlist{
 			ID:  "any-playlist-id",
 			URL: "https://open.spotify.com/playlist/any-playlist-id",
 		}
 
-		songs := []spotifyentities.Song{
+		songs := []music.Song{
 			{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
 			{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
 			{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
 		}
 
 		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return(nil)
-		s.CreatePlaylistOnSpotifyUseCaseMock.
+		s.CreatePlaylistUseCaseMock.
 			On("Execute", mock.Anything, mock.Anything).
 			Return(expected, nil)
 
-		s.AddTracksToSpotifyPlaylistUseCaseMock.
+		s.AddTracksUseCaseMock.
 			On("Execute", mock.Anything, mock.Anything).
 			Return(errors.New("any-error"))
 
-		_, err := s.Gateway.CreatePlaylistOnSpotify(ctx, "any-playlist-name", songs)
+		_, err := s.Gateway.CreatePlaylist(ctx, "any-playlist-name", songs)
 
 		s.Error(err)
 		s.ErrorContains(err, "any-error")

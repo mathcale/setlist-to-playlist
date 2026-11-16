@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/setlistfm"
-	"github.com/mathcale/setlist-to-playlist/internal/entities/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/tests/mocks"
 )
 
@@ -97,9 +97,9 @@ func (s *RootCmdTestSuite) TestRun() {
 			},
 		}
 
-		songs := &spotify.FindAllSongsOutput{
+		songs := &music.FetchSongsOutput{
 			Artist: "any-artist",
-			Songs: []spotify.Song{
+			Songs: []music.Song{
 				{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
 				{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
 				{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
@@ -110,13 +110,12 @@ func (s *RootCmdTestSuite) TestRun() {
 
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("StartWebServer").Return()
-		s.RootCmdGatewayMock.On("HandleSpotifyAuthentication", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
 		s.RootCmdGatewayMock.
-			On("FetchSongsOnSpotify", mock.Anything, set.Songs(), set.ArtistName()).
+			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
 			Return(songs, nil)
 		s.RootCmdGatewayMock.
-			On("CreatePlaylistOnSpotify", mock.Anything, set.Title(), songs.Songs).
+			On("CreatePlaylist", mock.Anything, set.Title(), songs.Songs).
 			Return(&playlistURL, nil)
 
 		cmd := s.Cmd.Build()
@@ -170,9 +169,8 @@ func (s *RootCmdTestSuite) TestRun() {
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(&setlistfm.Set{}, nil)
-		s.RootCmdGatewayMock.On("StartWebServer").Return()
 		s.RootCmdGatewayMock.
-			On("HandleSpotifyAuthentication", mock.Anything).
+			On("Authenticate", mock.Anything).
 			Return(errors.New("any-error"))
 
 		cmd := s.Cmd.Build()
@@ -211,10 +209,9 @@ func (s *RootCmdTestSuite) TestRun() {
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("StartWebServer").Return()
-		s.RootCmdGatewayMock.On("HandleSpotifyAuthentication", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
 		s.RootCmdGatewayMock.
-			On("FetchSongsOnSpotify", mock.Anything, set.Songs(), set.ArtistName()).
+			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
 			Return(nil, errors.New("any-error"))
 
 		cmd := s.Cmd.Build()
@@ -250,9 +247,9 @@ func (s *RootCmdTestSuite) TestRun() {
 			},
 		}
 
-		songs := &spotify.FindAllSongsOutput{
+		songs := &music.FetchSongsOutput{
 			Artist: "any-artist",
-			Songs: []spotify.Song{
+			Songs: []music.Song{
 				{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
 				{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
 				{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
@@ -262,13 +259,12 @@ func (s *RootCmdTestSuite) TestRun() {
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("StartWebServer").Return()
-		s.RootCmdGatewayMock.On("HandleSpotifyAuthentication", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
 		s.RootCmdGatewayMock.
-			On("FetchSongsOnSpotify", mock.Anything, set.Songs(), set.ArtistName()).
+			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
 			Return(songs, nil)
 		s.RootCmdGatewayMock.
-			On("CreatePlaylistOnSpotify", mock.Anything, set.Title(), songs.Songs).
+			On("CreatePlaylist", mock.Anything, set.Title(), songs.Songs).
 			Return(nil, errors.New("any-error"))
 
 		cmd := s.Cmd.Build()
