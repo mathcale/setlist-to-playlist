@@ -67,6 +67,9 @@ func (s *RootCmdTestSuite) TestBuild() {
 		flags := cmd.Flags()
 
 		s.NotNil(flags.Lookup("url"))
+		s.NotNil(flags.Lookup("provider"))
+		s.Equal("p", flags.Lookup("provider").Shorthand)
+		s.Equal("spotify", flags.Lookup("provider").DefValue)
 	})
 }
 
@@ -109,13 +112,14 @@ func (s *RootCmdTestSuite) TestRun() {
 		playlistURL := "https://open.spotify.com/playlist/any-playlist-id"
 
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(nil)
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything, music.ProviderSpotify).Return(nil)
 		s.RootCmdGatewayMock.
-			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
+			On("FetchSongs", mock.Anything, music.ProviderSpotify, set.Songs(), set.ArtistName()).
 			Return(songs, nil)
 		s.RootCmdGatewayMock.
-			On("CreatePlaylist", mock.Anything, set.Title(), songs.Songs).
+			On("CreatePlaylist", mock.Anything, music.ProviderSpotify, set.Title(), songs.Songs).
 			Return(&playlistURL, nil)
 
 		cmd := s.Cmd.Build()
@@ -133,6 +137,7 @@ func (s *RootCmdTestSuite) TestRun() {
 		defer s.cleanMocks()
 
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(nil)
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(nil, errors.New("any-validation-error"))
 
@@ -149,6 +154,7 @@ func (s *RootCmdTestSuite) TestRun() {
 		defer s.cleanMocks()
 
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(nil)
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.
 			On("GetTracksFromSetlist", mock.Anything).
@@ -167,10 +173,11 @@ func (s *RootCmdTestSuite) TestRun() {
 		defer s.cleanMocks()
 
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(nil)
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(&setlistfm.Set{}, nil)
 		s.RootCmdGatewayMock.
-			On("Authenticate", mock.Anything).
+			On("Authenticate", mock.Anything, music.ProviderSpotify).
 			Return(errors.New("any-error"))
 
 		cmd := s.Cmd.Build()
@@ -207,11 +214,12 @@ func (s *RootCmdTestSuite) TestRun() {
 		}
 
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(nil)
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything, music.ProviderSpotify).Return(nil)
 		s.RootCmdGatewayMock.
-			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
+			On("FetchSongs", mock.Anything, music.ProviderSpotify, set.Songs(), set.ArtistName()).
 			Return(nil, errors.New("any-error"))
 
 		cmd := s.Cmd.Build()
@@ -257,14 +265,15 @@ func (s *RootCmdTestSuite) TestRun() {
 		}
 
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(nil)
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything, music.ProviderSpotify).Return(nil)
 		s.RootCmdGatewayMock.
-			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
+			On("FetchSongs", mock.Anything, music.ProviderSpotify, set.Songs(), set.ArtistName()).
 			Return(songs, nil)
 		s.RootCmdGatewayMock.
-			On("CreatePlaylist", mock.Anything, set.Title(), songs.Songs).
+			On("CreatePlaylist", mock.Anything, music.ProviderSpotify, set.Title(), songs.Songs).
 			Return(nil, errors.New("any-error"))
 
 		cmd := s.Cmd.Build()
@@ -274,5 +283,85 @@ func (s *RootCmdTestSuite) TestRun() {
 
 		s.Error(err)
 		s.ErrorContains(err, "any-error")
+	})
+
+	s.Run("Should accept --provider and the -p shorthand", func() {
+		for _, flag := range []string{"--provider", "-p"} {
+			cmd := s.Cmd.Build()
+			s.NoError(cmd.ParseFlags([]string{flag, "apple-music", "--url", url}))
+
+			got, _ := cmd.Flags().GetString("provider")
+			s.Equal("apple-music", got)
+		}
+	})
+
+	s.Run("Should default to spotify when the flag is absent", func() {
+		defer s.cleanMocks()
+
+		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(nil)
+		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(nil, errors.New("stop"))
+		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
+
+		cmd := s.Cmd.Build()
+		_ = cmd.ParseFlags([]string{"--url", url})
+		_ = cmd.RunE(cmd, nil)
+
+		s.RootCmdGatewayMock.AssertCalled(s.T(), "CheckProvider", music.ProviderSpotify)
+	})
+
+	s.Run("Should return an error listing valid providers for an invalid value", func() {
+		defer s.cleanMocks()
+
+		cmd := s.Cmd.Build()
+		_ = cmd.ParseFlags([]string{"--url", url, "-p", "tidal"})
+		err := cmd.RunE(cmd, nil)
+
+		s.ErrorContains(err, "spotify, apple-music")
+		s.RootCmdGatewayMock.AssertNotCalled(s.T(), "CheckProvider", mock.Anything)
+	})
+
+	s.Run("Should exit cleanly without authenticating when the provider is unavailable", func() {
+		defer s.cleanMocks()
+
+		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.
+			On("CheckProvider", music.ProviderAppleMusic).
+			Return(fmt.Errorf("Apple Music: %w", music.ErrProviderUnavailable))
+
+		cmd := s.Cmd.Build()
+		_ = cmd.ParseFlags([]string{"--url", url, "-p", "apple-music"})
+		err := cmd.RunE(cmd, nil)
+
+		s.NoError(err)
+		s.Contains(s.LoggerMock.Calls[0].Arguments[0].(string), "Apple Music support is not available yet")
+		s.RootCmdGatewayMock.AssertNotCalled(s.T(), "Authenticate", mock.Anything, mock.Anything)
+	})
+
+	s.Run("Should name the provider in progress logs", func() {
+		defer s.cleanMocks()
+
+		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(nil)
+		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(&setlistfm.Set{}, nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything, music.ProviderSpotify).Return(nil)
+		s.RootCmdGatewayMock.On("FetchSongs", mock.Anything, music.ProviderSpotify, mock.Anything, mock.Anything).
+			Return(&music.FetchSongsOutput{}, nil)
+		url := "u"
+		s.RootCmdGatewayMock.On("CreatePlaylist", mock.Anything, music.ProviderSpotify, mock.Anything, mock.Anything).
+			Return(&url, nil)
+
+		cmd := s.Cmd.Build()
+		_ = cmd.ParseFlags([]string{"--url", "x"})
+		s.NoError(cmd.RunE(cmd, nil))
+
+		var msgs []string
+		for _, c := range s.LoggerMock.Calls {
+			msgs = append(msgs, c.Arguments[0].(string))
+		}
+
+		s.Contains(msgs, "Authenticating on Spotify...")
+		s.Contains(msgs, "Fetching songs on Spotify...")
+		s.Contains(msgs, "Creating playlist on Spotify...")
 	})
 }

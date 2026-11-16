@@ -17,10 +17,8 @@ type RootCmdGatewayTestSuite struct {
 	suite.Suite
 	LoggerMock                *mocks.LoggerMock
 	AuthenticatorMock         *mocks.AuthenticatorMock
+	ProviderMock              *mocks.MusicProviderMock
 	GetSetlistByIDUseCaseMock *mocks.SetlistFMGetSetlistByIDUseCaseMock
-	FetchSongsUseCaseMock     *mocks.FetchSongsUseCaseMock
-	CreatePlaylistUseCaseMock *mocks.CreatePlaylistUseCaseMock
-	AddTracksUseCaseMock      *mocks.AddTracksUseCaseMock
 
 	Gateway RootCmdGatewayInterface
 }
@@ -28,19 +26,13 @@ type RootCmdGatewayTestSuite struct {
 func (s *RootCmdGatewayTestSuite) SetupTest() {
 	s.LoggerMock = new(mocks.LoggerMock)
 	s.AuthenticatorMock = new(mocks.AuthenticatorMock)
+	s.ProviderMock = new(mocks.MusicProviderMock)
 	s.GetSetlistByIDUseCaseMock = new(mocks.SetlistFMGetSetlistByIDUseCaseMock)
-	s.FetchSongsUseCaseMock = new(mocks.FetchSongsUseCaseMock)
-	s.CreatePlaylistUseCaseMock = new(mocks.CreatePlaylistUseCaseMock)
-	s.AddTracksUseCaseMock = new(mocks.AddTracksUseCaseMock)
 
-	s.Gateway = NewRootCmdGateway(
-		s.LoggerMock,
-		s.AuthenticatorMock,
-		s.GetSetlistByIDUseCaseMock,
-		s.FetchSongsUseCaseMock,
-		s.CreatePlaylistUseCaseMock,
-		s.AddTracksUseCaseMock,
-	)
+	registry := music.NewProviderRegistry().
+		Register(music.ProviderSpotify, s.ProviderMock, s.AuthenticatorMock)
+
+	s.Gateway = NewRootCmdGateway(s.LoggerMock, registry, s.GetSetlistByIDUseCaseMock)
 }
 
 func (s *RootCmdGatewayTestSuite) cleanMocks() {
@@ -48,14 +40,10 @@ func (s *RootCmdGatewayTestSuite) cleanMocks() {
 	s.LoggerMock.Calls = nil
 	s.AuthenticatorMock.ExpectedCalls = nil
 	s.AuthenticatorMock.Calls = nil
+	s.ProviderMock.ExpectedCalls = nil
+	s.ProviderMock.Calls = nil
 	s.GetSetlistByIDUseCaseMock.ExpectedCalls = nil
 	s.GetSetlistByIDUseCaseMock.Calls = nil
-	s.FetchSongsUseCaseMock.ExpectedCalls = nil
-	s.FetchSongsUseCaseMock.Calls = nil
-	s.CreatePlaylistUseCaseMock.ExpectedCalls = nil
-	s.CreatePlaylistUseCaseMock.Calls = nil
-	s.AddTracksUseCaseMock.ExpectedCalls = nil
-	s.AddTracksUseCaseMock.Calls = nil
 }
 
 func TestRootCmdGateway(t *testing.T) {
@@ -123,15 +111,26 @@ func (s *RootCmdGatewayTestSuite) TestGetTracksFromSetlist() {
 	})
 }
 
+func (s *RootCmdGatewayTestSuite) TestCheckProvider() {
+	s.Run("Should accept a registered provider", func() {
+		s.NoError(s.Gateway.CheckProvider(music.ProviderSpotify))
+	})
+
+	s.Run("Should return ErrProviderUnavailable for an unregistered provider", func() {
+		err := s.Gateway.CheckProvider(music.ProviderAppleMusic)
+
+		s.ErrorIs(err, music.ErrProviderUnavailable)
+		s.ErrorContains(err, "Apple Music")
+	})
+}
+
 func (s *RootCmdGatewayTestSuite) TestAuthenticate() {
-	s.Run("Should delegate to the Authenticator", func() {
+	s.Run("Should delegate to the registered provider's Authenticator", func() {
 		defer s.cleanMocks()
 
 		s.AuthenticatorMock.On("Authenticate", mock.Anything).Return(nil)
 
-		err := s.Gateway.Authenticate(context.Background())
-
-		s.NoError(err)
+		s.NoError(s.Gateway.Authenticate(context.Background(), music.ProviderSpotify))
 		s.AuthenticatorMock.AssertNumberOfCalls(s.T(), "Authenticate", 1)
 	})
 
@@ -140,133 +139,120 @@ func (s *RootCmdGatewayTestSuite) TestAuthenticate() {
 
 		s.AuthenticatorMock.On("Authenticate", mock.Anything).Return(errors.New("any-error"))
 
-		err := s.Gateway.Authenticate(context.Background())
+		s.Error(s.Gateway.Authenticate(context.Background(), music.ProviderSpotify))
+	})
 
-		s.Error(err)
+	s.Run("Should not authenticate an unregistered provider", func() {
+		defer s.cleanMocks()
+
+		err := s.Gateway.Authenticate(context.Background(), music.ProviderAppleMusic)
+
+		s.ErrorIs(err, music.ErrProviderUnavailable)
+		s.AuthenticatorMock.AssertNotCalled(s.T(), "Authenticate", mock.Anything)
 	})
 }
 
 func (s *RootCmdGatewayTestSuite) TestFetchSongs() {
-	s.Run("Should fetch songs on Spotify", func() {
+	s.Run("Should search on the chosen provider and return the best matches", func() {
 		defer s.cleanMocks()
 
-		expected := &music.FetchSongsOutput{
-			Artist: "any-artist",
-			Songs: []music.Song{
-				{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
-				{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
-				{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
-			},
-		}
+		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return()
+		s.ProviderMock.
+			On("SearchCandidates", mock.Anything, "any-song-1", "any-artist").
+			Return([]music.Candidate{{
+				TrackID: "id-1", Title: "any-song-1", Artist: "any-artist",
+				Album: "any-album", AlbumType: music.AlbumTypeAlbum,
+			}}, nil)
 
-		songs := []string{"any-song-1", "any-song-2", "any-song-3"}
-
-		s.FetchSongsUseCaseMock.
-			On("Execute", mock.Anything, mock.Anything, mock.Anything).
-			Return(expected, nil)
-
-		result, err := s.Gateway.FetchSongs(context.Background(), songs, "any-artist")
+		result, err := s.Gateway.FetchSongs(
+			context.Background(), music.ProviderSpotify, []string{"any-song-1"}, "any-artist",
+		)
 
 		s.NoError(err)
-		s.Equal(expected, result)
+		s.Equal([]music.Song{{ID: "id-1", Title: "any-song-1", Album: "any-album"}}, result.Songs)
 	})
 
-	s.Run("Should return an error when failing to fetch songs from Spotify", func() {
+	s.Run("Should return an error when the provider search fails", func() {
 		defer s.cleanMocks()
 
-		songs := []string{"any-song-1", "any-song-2", "any-song-3"}
-
-		s.FetchSongsUseCaseMock.
-			On("Execute", mock.Anything, mock.Anything, mock.Anything).
+		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return()
+		s.ProviderMock.
+			On("SearchCandidates", mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, errors.New("any-error"))
 
-		_, err := s.Gateway.FetchSongs(context.Background(), songs, "any-artist")
+		_, err := s.Gateway.FetchSongs(
+			context.Background(), music.ProviderSpotify, []string{"any-song-1"}, "any-artist",
+		)
 
 		s.Error(err)
+	})
+
+	s.Run("Should return ErrProviderUnavailable for an unregistered provider", func() {
+		_, err := s.Gateway.FetchSongs(
+			context.Background(), music.ProviderAppleMusic, []string{"any-song-1"}, "any-artist",
+		)
+
+		s.ErrorIs(err, music.ErrProviderUnavailable)
 	})
 }
 
 func (s *RootCmdGatewayTestSuite) TestCreatePlaylist() {
-	s.Run("Should create a playlist on Spotify", func() {
+	songs := []music.Song{
+		{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
+		{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
+	}
+
+	s.Run("Should create a playlist and add the tracks on the chosen provider", func() {
 		defer s.cleanMocks()
 
-		ctx := context.Background()
-
-		expected := &music.Playlist{
-			ID:  "any-playlist-id",
-			URL: "https://open.spotify.com/playlist/any-playlist-id",
-		}
-
-		songs := []music.Song{
-			{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
-			{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
-			{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
-		}
-
-		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return(nil)
-		s.CreatePlaylistUseCaseMock.
-			On("Execute", mock.Anything, mock.Anything).
-			Return(expected, nil)
-
-		s.AddTracksUseCaseMock.
-			On("Execute", mock.Anything, mock.Anything).
+		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return()
+		s.ProviderMock.
+			On("CreatePlaylist", mock.Anything, "any-playlist-name", mock.Anything).
+			Return(&music.Playlist{ID: "any-playlist-id", URL: "any-url"}, nil)
+		s.ProviderMock.
+			On("AddTracks", mock.Anything, "any-playlist-id", []string{"any-song-id-1", "any-song-id-2"}).
 			Return(nil)
 
-		result, err := s.Gateway.CreatePlaylist(ctx, "any-playlist-name", songs)
+		result, err := s.Gateway.CreatePlaylist(
+			context.Background(), music.ProviderSpotify, "any-playlist-name", songs,
+		)
 
 		s.NoError(err)
-		s.Equal(expected.URL, *result)
+		s.Equal("any-url", *result)
 	})
 
-	s.Run("Should return an error when failing to create a playlist on Spotify", func() {
+	s.Run("Should return an error when failing to create a playlist", func() {
 		defer s.cleanMocks()
 
-		ctx := context.Background()
-
-		songs := []music.Song{
-			{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
-			{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
-			{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
-		}
-
-		s.CreatePlaylistUseCaseMock.
-			On("Execute", mock.Anything, mock.Anything).
+		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return()
+		s.ProviderMock.
+			On("CreatePlaylist", mock.Anything, mock.Anything, mock.Anything).
 			Return(nil, errors.New("any-error"))
 
-		_, err := s.Gateway.CreatePlaylist(ctx, "any-playlist-name", songs)
+		_, err := s.Gateway.CreatePlaylist(context.Background(), music.ProviderSpotify, "n", songs)
 
-		s.Error(err)
 		s.ErrorContains(err, "any-error")
 	})
 
-	s.Run("Should return an error when failing to add tracks to a playlist on Spotify", func() {
+	s.Run("Should return an error when failing to add tracks", func() {
 		defer s.cleanMocks()
 
-		ctx := context.Background()
-
-		expected := &music.Playlist{
-			ID:  "any-playlist-id",
-			URL: "https://open.spotify.com/playlist/any-playlist-id",
-		}
-
-		songs := []music.Song{
-			{ID: "any-song-id-1", Title: "any-song-1", Album: "any-album-1"},
-			{ID: "any-song-id-2", Title: "any-song-2", Album: "any-album-1"},
-			{ID: "any-song-id-3", Title: "any-song-3", Album: "any-album-1"},
-		}
-
-		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return(nil)
-		s.CreatePlaylistUseCaseMock.
-			On("Execute", mock.Anything, mock.Anything).
-			Return(expected, nil)
-
-		s.AddTracksUseCaseMock.
-			On("Execute", mock.Anything, mock.Anything).
+		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return()
+		s.ProviderMock.
+			On("CreatePlaylist", mock.Anything, mock.Anything, mock.Anything).
+			Return(&music.Playlist{ID: "id", URL: "url"}, nil)
+		s.ProviderMock.
+			On("AddTracks", mock.Anything, mock.Anything, mock.Anything).
 			Return(errors.New("any-error"))
 
-		_, err := s.Gateway.CreatePlaylist(ctx, "any-playlist-name", songs)
+		_, err := s.Gateway.CreatePlaylist(context.Background(), music.ProviderSpotify, "n", songs)
 
-		s.Error(err)
 		s.ErrorContains(err, "any-error")
+	})
+
+	s.Run("Should return ErrProviderUnavailable for an unregistered provider", func() {
+		_, err := s.Gateway.CreatePlaylist(context.Background(), music.ProviderAppleMusic, "n", songs)
+
+		s.ErrorIs(err, music.ErrProviderUnavailable)
 	})
 }

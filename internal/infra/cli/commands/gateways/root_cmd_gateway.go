@@ -12,35 +12,33 @@ import (
 
 type RootCmdGatewayInterface interface {
 	GetTracksFromSetlist(setlistfmURL string) (*setlistfm.Set, error)
-	Authenticate(context.Context) error
-	FetchSongs(ctx context.Context, songTitles []string, artist string) (*music.FetchSongsOutput, error)
-	CreatePlaylist(ctx context.Context, playlistName string, songs []music.Song) (*string, error)
+	// CheckProvider returns music.ErrProviderUnavailable (wrapped) when the
+	// provider has nothing registered. It never authenticates.
+	CheckProvider(id music.ProviderID) error
+	Authenticate(ctx context.Context, id music.ProviderID) error
+	FetchSongs(ctx context.Context, id music.ProviderID, songTitles []string, artist string) (*music.FetchSongsOutput, error)
+	CreatePlaylist(ctx context.Context, id music.ProviderID, playlistName string, songs []music.Song) (*string, error)
 }
 
+// RootCmdGateway looks up the chosen provider in the registry and builds the
+// provider-agnostic music use cases around it per call. The use cases are
+// stateless wrappers, so constructing them on demand keeps them decoupled
+// from any single provider.
 type RootCmdGateway struct {
 	Logger                logger.LoggerInterface
-	Authenticator         music.Authenticator
+	Registry              *music.ProviderRegistry
 	GetSetlistByIDUseCase setlistfm_ucs.GetSetlistByIDUseCaseInterface
-	FetchSongsUseCase     music_ucs.FetchSongsUseCaseInterface
-	CreatePlaylistUseCase music_ucs.CreatePlaylistUseCaseInterface
-	AddTracksUseCase      music_ucs.AddTracksUseCaseInterface
 }
 
 func NewRootCmdGateway(
 	logger logger.LoggerInterface,
-	authenticator music.Authenticator,
+	registry *music.ProviderRegistry,
 	getSetlistByIDUseCase setlistfm_ucs.GetSetlistByIDUseCaseInterface,
-	fetchSongsUseCase music_ucs.FetchSongsUseCaseInterface,
-	createPlaylistUseCase music_ucs.CreatePlaylistUseCaseInterface,
-	addTracksUseCase music_ucs.AddTracksUseCaseInterface,
 ) RootCmdGatewayInterface {
 	return &RootCmdGateway{
 		Logger:                logger,
-		Authenticator:         authenticator,
+		Registry:              registry,
 		GetSetlistByIDUseCase: getSetlistByIDUseCase,
-		FetchSongsUseCase:     fetchSongsUseCase,
-		CreatePlaylistUseCase: createPlaylistUseCase,
-		AddTracksUseCase:      addTracksUseCase,
 	}
 }
 
@@ -63,24 +61,46 @@ func (gw *RootCmdGateway) GetTracksFromSetlist(setlistfmURL string) (*setlistfm.
 	return set, nil
 }
 
-func (gw *RootCmdGateway) Authenticate(ctx context.Context) error {
-	return gw.Authenticator.Authenticate(ctx)
+func (gw *RootCmdGateway) CheckProvider(id music.ProviderID) error {
+	_, err := gw.Registry.Lookup(id)
+	return err
+}
+
+func (gw *RootCmdGateway) Authenticate(ctx context.Context, id music.ProviderID) error {
+	entry, err := gw.Registry.Lookup(id)
+	if err != nil {
+		return err
+	}
+
+	return entry.Authenticator.Authenticate(ctx)
 }
 
 func (gw *RootCmdGateway) FetchSongs(
 	ctx context.Context,
+	id music.ProviderID,
 	songTitles []string,
 	artist string,
 ) (*music.FetchSongsOutput, error) {
-	return gw.FetchSongsUseCase.Execute(ctx, songTitles, artist)
+	entry, err := gw.Registry.Lookup(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return music_ucs.NewFetchSongsUseCase(entry.Provider, gw.Logger).Execute(ctx, songTitles, artist)
 }
 
 func (gw *RootCmdGateway) CreatePlaylist(
 	ctx context.Context,
+	id music.ProviderID,
 	playlistName string,
 	songs []music.Song,
 ) (*string, error) {
-	createPlaylistOut, err := gw.CreatePlaylistUseCase.Execute(
+	entry, err := gw.Registry.Lookup(id)
+	if err != nil {
+		return nil, err
+	}
+
+	createPlaylistOut, err := music_ucs.NewCreatePlaylistUseCase(entry.Provider, gw.Logger).Execute(
 		ctx,
 		music.CreatePlaylistInput{
 			Title:       playlistName,
@@ -96,7 +116,7 @@ func (gw *RootCmdGateway) CreatePlaylist(
 		"playlistURL": createPlaylistOut.URL,
 	})
 
-	if err := gw.AddTracksUseCase.Execute(
+	if err := music_ucs.NewAddTracksUseCase(entry.Provider, gw.Logger).Execute(
 		ctx,
 		music.AddTracksInput{
 			PlaylistID: createPlaylistOut.ID,

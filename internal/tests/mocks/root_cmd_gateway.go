@@ -23,17 +23,23 @@ func (m *RootCmdGatewayMock) GetTracksFromSetlist(setlistfmURL string) (*setlist
 	return args.Get(0).(*setlistfm.Set), args.Error(1)
 }
 
-func (m *RootCmdGatewayMock) Authenticate(ctx context.Context) error {
-	args := m.Called(ctx)
+func (m *RootCmdGatewayMock) CheckProvider(id music.ProviderID) error {
+	args := m.Called(id)
+	return args.Error(0)
+}
+
+func (m *RootCmdGatewayMock) Authenticate(ctx context.Context, id music.ProviderID) error {
+	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
 func (m *RootCmdGatewayMock) FetchSongs(
 	ctx context.Context,
+	id music.ProviderID,
 	songTitles []string,
 	artist string,
 ) (*music.FetchSongsOutput, error) {
-	args := m.Called(ctx, songTitles, artist)
+	args := m.Called(ctx, id, songTitles, artist)
 
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -44,10 +50,11 @@ func (m *RootCmdGatewayMock) FetchSongs(
 
 func (m *RootCmdGatewayMock) CreatePlaylist(
 	ctx context.Context,
+	id music.ProviderID,
 	playlistName string,
 	songs []music.Song,
 ) (*string, error) {
-	args := m.Called(ctx, playlistName, songs)
+	args := m.Called(ctx, id, playlistName, songs)
 
 	if args.Get(0) == nil {
 		return nil, args.Error(1)

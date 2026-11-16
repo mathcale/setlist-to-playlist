@@ -8,6 +8,7 @@ import (
 	"github.com/mathcale/setlist-to-playlist/config"
 	"github.com/mathcale/setlist-to-playlist/internal/clients/setlistfm"
 	spotify_client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
+	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands"
 	rootcmd_gw "github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands/gateways"
@@ -21,7 +22,6 @@ import (
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/prompter"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/responsehandler"
-	music_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/music"
 	setlistfm_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/setlistfm"
 	spotify_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
 	spotify_uc_gw "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify/gateways"
@@ -106,9 +106,6 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 
 	spotifyCallbackUseCase := spotify_ucs.NewSpotifyAuthCallbackUseCase(spotifyClient, l)
 	getSetlistByIDUseCase := setlistfm_ucs.NewGetSetlistByIDUseCase(setlistFMClient)
-	fetchSongsUseCase := music_ucs.NewFetchSongsUseCase(spotifyClient, l)
-	createPlaylistUseCase := music_ucs.NewCreatePlaylistUseCase(spotifyClient, l)
-	addTracksUseCase := music_ucs.NewAddTracksUseCase(spotifyClient, l)
 	spotifyUserAuthenticationUseCase := spotify_ucs.NewSpotifyUserAuthenticationUseCase(
 		spotifyUserAuthenticationUseCaseGateway,
 	)
@@ -133,14 +130,12 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		state,
 	)
 
-	rootCmdGw := rootcmd_gw.NewRootCmdGateway(
-		l,
-		spotifyAuthenticator,
-		getSetlistByIDUseCase,
-		fetchSongsUseCase,
-		createPlaylistUseCase,
-		addTracksUseCase,
-	)
+	// Registering a provider is one line; providers without a line here (Apple
+	// Music, for now) are reported as not available yet.
+	providers := music.NewProviderRegistry().
+		Register(music.ProviderSpotify, spotifyClient, spotifyAuthenticator)
+
+	rootCmdGw := rootcmd_gw.NewRootCmdGateway(l, providers, getSetlistByIDUseCase)
 
 	rootCmd := commands.NewRootCmd(l, rootCmdGw)
 	cli := cli.NewCLI(rootCmd.Build())
