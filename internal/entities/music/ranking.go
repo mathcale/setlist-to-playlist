@@ -22,12 +22,19 @@ func (c Candidate) IsLive() bool {
 
 // tier: lower is better. Order: album/EP > compilation > single > unknown > live.
 // Unknown album types are ranked after single (nothing makes them better) but
-// before live (they are not known to be live).
+// before live (they are not known to be live). Live candidates rank after every
+// studio one, ordered among themselves by the same album type order.
 func (c Candidate) tier() int {
 	if c.IsLive() {
-		return 4
+		return liveTierOffset + c.albumTier()
 	}
 
+	return c.albumTier()
+}
+
+const liveTierOffset = 4
+
+func (c Candidate) albumTier() int {
 	switch c.AlbumType {
 	case AlbumTypeAlbum, AlbumTypeEP:
 		return 0
