@@ -109,11 +109,32 @@ func TestReauthenticate(t *testing.T) {
 	t.Run("returns the storefront error of the new tokens", func(t *testing.T) {
 		f := newFixture()
 		f.prompter.On("Secret", mock.Anything).Return("x", nil)
-		f.persistence.On("Write", mock.Anything).Return(nil)
 		f.client.On("SetAuth", mock.Anything).Return()
 		f.client.On("Storefront", mock.Anything).Return("", music.ErrCredentialsExpired)
 
 		assert.ErrorIs(t, f.auth.Reauthenticate(context.Background()), music.ErrCredentialsExpired)
+		f.persistence.AssertNotCalled(t, "Write", mock.Anything)
+	})
+
+	t.Run("first use with rejected tokens does not save them", func(t *testing.T) {
+		f := newFixture()
+		f.persistence.On("Read").Return(nil, errors.New("missing"))
+		f.prompter.On("Secret", mock.Anything).Return("x", nil)
+		f.client.On("SetAuth", mock.Anything).Return()
+		f.client.On("Storefront", mock.Anything).Return("", music.ErrCredentialsExpired)
+
+		assert.ErrorIs(t, f.auth.Authenticate(context.Background()), music.ErrCredentialsExpired)
+		f.persistence.AssertNotCalled(t, "Write", mock.Anything)
+	})
+
+	t.Run("a write failure after accepted tokens is returned", func(t *testing.T) {
+		f := newFixture()
+		f.prompter.On("Secret", mock.Anything).Return("x", nil)
+		f.client.On("SetAuth", mock.Anything).Return()
+		f.client.On("Storefront", mock.Anything).Return("us", nil)
+		f.persistence.On("Write", mock.Anything).Return(errors.New("disk"))
+
+		assert.EqualError(t, f.auth.Reauthenticate(context.Background()), "disk")
 	})
 }
 
