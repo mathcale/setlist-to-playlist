@@ -22,9 +22,9 @@ type SetlistFM struct {
 }
 
 type Spotify struct {
-	ClientID     string `mapstructure:"client_id"`
-	ClientSecret string `mapstructure:"client_secret"`
-	RedirectURL  string `mapstructure:"redirect_url"`
+	// Client ID/secret are not loaded here: they are asked for on first
+	// Spotify use (see SpotifyCredentialStore).
+	RedirectURL string `mapstructure:"redirect_url"`
 }
 
 type Config struct {
@@ -95,26 +95,6 @@ func Load(configPaths ConfigPaths, p prompter.Prompter) (*Config, error) {
 		}
 
 		viper.Set("setlistfm.api_key", apiKey)
-		viper.WriteConfig()
-	}
-
-	if ok := viper.IsSet("spotify.client_id"); !ok {
-		clientID, err := p.Text("What's your Spotify client ID?")
-		if err != nil {
-			return nil, err
-		}
-
-		viper.Set("spotify.client_id", clientID)
-		viper.WriteConfig()
-	}
-
-	if ok := viper.IsSet("spotify.client_secret"); !ok {
-		secret, err := p.Text("What's your Spotify client secret?")
-		if err != nil {
-			return nil, err
-		}
-
-		viper.Set("spotify.client_secret", secret)
 		viper.WriteConfig()
 	}
 

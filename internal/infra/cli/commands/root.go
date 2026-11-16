@@ -52,9 +52,7 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	rc.Gateway.StartWebServer()
-
-	if err := rc.Gateway.HandleSpotifyAuthentication(cmd.Context()); err != nil {
+	if err := rc.Gateway.Authenticate(cmd.Context()); err != nil {
 		rc.Logger.Error("Failed to authenticate on Spotify", err, nil)
 		return err
 	}

@@ -110,8 +110,7 @@ func (s *RootCmdTestSuite) TestRun() {
 
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("StartWebServer").Return()
-		s.RootCmdGatewayMock.On("HandleSpotifyAuthentication", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
 		s.RootCmdGatewayMock.
 			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
 			Return(songs, nil)
@@ -170,9 +169,8 @@ func (s *RootCmdTestSuite) TestRun() {
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(&setlistfm.Set{}, nil)
-		s.RootCmdGatewayMock.On("StartWebServer").Return()
 		s.RootCmdGatewayMock.
-			On("HandleSpotifyAuthentication", mock.Anything).
+			On("Authenticate", mock.Anything).
 			Return(errors.New("any-error"))
 
 		cmd := s.Cmd.Build()
@@ -211,8 +209,7 @@ func (s *RootCmdTestSuite) TestRun() {
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("StartWebServer").Return()
-		s.RootCmdGatewayMock.On("HandleSpotifyAuthentication", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
 		s.RootCmdGatewayMock.
 			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
 			Return(nil, errors.New("any-error"))
@@ -262,8 +259,7 @@ func (s *RootCmdTestSuite) TestRun() {
 		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
 		s.LoggerMock.On("Error", mock.Anything, mock.Anything, mock.Anything).Return()
 		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(set, nil)
-		s.RootCmdGatewayMock.On("StartWebServer").Return()
-		s.RootCmdGatewayMock.On("HandleSpotifyAuthentication", mock.Anything).Return(nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything).Return(nil)
 		s.RootCmdGatewayMock.
 			On("FetchSongs", mock.Anything, set.Songs(), set.ArtistName()).
 			Return(songs, nil)

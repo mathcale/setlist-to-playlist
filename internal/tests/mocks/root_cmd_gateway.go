@@ -23,11 +23,7 @@ func (m *RootCmdGatewayMock) GetTracksFromSetlist(setlistfmURL string) (*setlist
 	return args.Get(0).(*setlistfm.Set), args.Error(1)
 }
 
-func (m *RootCmdGatewayMock) StartWebServer() {
-	m.Called()
-}
-
-func (m *RootCmdGatewayMock) HandleSpotifyAuthentication(ctx context.Context) error {
+func (m *RootCmdGatewayMock) Authenticate(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
 }
