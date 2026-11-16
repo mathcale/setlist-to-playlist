@@ -85,7 +85,3 @@ func (r *ProviderRegistry) Lookup(id ProviderID) (ProviderEntry, error) {
 
 	return e, nil
 }
-
-// ErrNotImplemented is returned by a provider whose search and playlist
-// operations are not built yet. The root command turns it into a clean exit.
-var ErrNotImplemented = errors.New("playlist creation not available yet")
