@@ -70,3 +70,19 @@ func TestSpotifyCredentialStore_PromptsOnlyForMissingSecret(t *testing.T) {
 	p.AssertNumberOfCalls(t, "Text", 0)
 	p.AssertExpectations(t)
 }
+
+func TestSpotifyCredentialStore_RejectsEmptyInput(t *testing.T) {
+	paths := loadWith(t, "[setlistfm]\napi_key='k'\n")
+
+	p := &mocks.PrompterMock{}
+	p.On("Text", "What's your Spotify client ID?").Return("  ", nil).Once()
+
+	err := NewSpotifyCredentialStore(p).Ensure()
+
+	assert.ErrorContains(t, err, "Spotify client ID cannot be empty")
+	p.AssertNumberOfCalls(t, "Secret", 0)
+
+	raw, readErr := os.ReadFile(paths.AppConfigFile)
+	assert.NoError(t, readErr)
+	assert.NotContains(t, string(raw), "client_id")
+}

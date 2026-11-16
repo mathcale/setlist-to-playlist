@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/viper"
 
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/prompter"
@@ -10,6 +13,11 @@ const (
 	spotifyClientIDKey     = "spotify.client_id"
 	spotifyClientSecretKey = "spotify.client_secret"
 )
+
+var credentialLabels = map[string]string{
+	spotifyClientIDKey:     "Spotify client ID",
+	spotifyClientSecretKey: "Spotify client secret",
+}
 
 // SpotifyCredentialStore asks for the Spotify client ID and secret on first
 // use and persists them to the TOML config. Load must have run before.
@@ -54,6 +62,11 @@ func (s *SpotifyCredentialStore) Credentials() (string, string) {
 }
 
 func save(key, value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("%s cannot be empty", credentialLabels[key])
+	}
+
 	viper.Set(key, value)
 	return viper.WriteConfig()
 }
