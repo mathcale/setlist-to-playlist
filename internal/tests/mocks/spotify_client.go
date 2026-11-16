@@ -9,7 +9,7 @@ import (
 	"golang.org/x/oauth2"
 
 	client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
-	entities "github.com/mathcale/setlist-to-playlist/internal/entities/spotify"
+	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	oauth2util "github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 )
 
@@ -83,38 +83,35 @@ func (m *SpotifyClientMock) RefreshToken(
 	return args.Get(0).(*oauth2.Token), args.Error(1)
 }
 
-func (m *SpotifyClientMock) FindAllSongsByName(
+func (m *SpotifyClientMock) SearchCandidates(
 	ctx context.Context,
-	name []string,
+	title string,
 	artist string,
-) (*entities.FindAllSongsOutput, error) {
-	args := m.Called(ctx, name, artist)
+) ([]music.Candidate, error) {
+	args := m.Called(ctx, title, artist)
 
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 
-	return args.Get(0).(*entities.FindAllSongsOutput), args.Error(1)
+	return args.Get(0).([]music.Candidate), args.Error(1)
 }
 
 func (m *SpotifyClientMock) CreatePlaylist(
 	ctx context.Context,
 	title string,
 	description string,
-) (*entities.CreatePlaylistOutput, error) {
+) (*music.Playlist, error) {
 	args := m.Called(ctx, title, description)
 
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 
-	return args.Get(0).(*entities.CreatePlaylistOutput), args.Error(1)
+	return args.Get(0).(*music.Playlist), args.Error(1)
 }
 
-func (m *SpotifyClientMock) AddTracksToPlaylist(
-	ctx context.Context,
-	input entities.AddTracksToPlaylistClientInput,
-) error {
-	args := m.Called(ctx, input)
+func (m *SpotifyClientMock) AddTracks(ctx context.Context, playlistID string, trackIDs []string) error {
+	args := m.Called(ctx, playlistID, trackIDs)
 	return args.Error(0)
 }

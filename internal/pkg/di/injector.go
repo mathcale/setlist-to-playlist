@@ -20,6 +20,7 @@ import (
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/responsehandler"
+	music_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/music"
 	setlistfm_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/setlistfm"
 	spotify_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
 	spotify_uc_gw "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify/gateways"
@@ -95,9 +96,9 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 
 	spotifyCallbackUseCase := spotify_ucs.NewSpotifyAuthCallbackUseCase(spotifyClient, l)
 	getSetlistByIDUseCase := setlistfm_ucs.NewGetSetlistByIDUseCase(setlistFMClient)
-	fetchSongsOnSpotifyUseCase := spotify_ucs.NewFetchSongsOnSpotifyUseCase(spotifyClient, l)
-	createPlaylistOnSpotifyUseCase := spotify_ucs.NewCreatePlaylistUseCase(spotifyClient, l)
-	addTracksToSpotifyPlaylistUseCase := spotify_ucs.NewAddTracksToPlaylistUseCase(spotifyClient, l)
+	fetchSongsUseCase := music_ucs.NewFetchSongsUseCase(spotifyClient, l)
+	createPlaylistUseCase := music_ucs.NewCreatePlaylistUseCase(spotifyClient, l)
+	addTracksUseCase := music_ucs.NewAddTracksUseCase(spotifyClient, l)
 	spotifyUserAuthenticationUseCase := spotify_ucs.NewSpotifyUserAuthenticationUseCase(
 		spotifyUserAuthenticationUseCaseGateway,
 	)
@@ -119,9 +120,9 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		webServer,
 		spotifyClient,
 		getSetlistByIDUseCase,
-		fetchSongsOnSpotifyUseCase,
-		createPlaylistOnSpotifyUseCase,
-		addTracksToSpotifyPlaylistUseCase,
+		fetchSongsUseCase,
+		createPlaylistUseCase,
+		addTracksUseCase,
 		spotifyUserAuthenticationUseCase,
 		*genCodes,
 		state,

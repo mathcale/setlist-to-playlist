@@ -60,7 +60,7 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 
 	rc.Logger.Info("Fetching songs on Spotify...", nil)
 
-	songs, err := rc.Gateway.FetchSongsOnSpotify(cmd.Context(), set.Songs(), set.ArtistName())
+	songs, err := rc.Gateway.FetchSongs(cmd.Context(), set.Songs(), set.ArtistName())
 	if err != nil {
 		rc.Logger.Error("Failed to fetch songs from Spotify", err, nil)
 		return err
@@ -68,7 +68,7 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 
 	rc.Logger.Info("Creating playlist...", nil)
 
-	playlistURL, err := rc.Gateway.CreatePlaylistOnSpotify(cmd.Context(), set.Title(), songs.Songs)
+	playlistURL, err := rc.Gateway.CreatePlaylist(cmd.Context(), set.Title(), songs.Songs)
 	if err != nil {
 		rc.Logger.Error("Failed to create playlist on Spotify", err, nil)
 		return err

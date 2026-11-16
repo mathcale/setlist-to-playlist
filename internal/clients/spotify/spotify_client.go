@@ -10,7 +10,7 @@ import (
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2"
 
-	entities "github.com/mathcale/setlist-to-playlist/internal/entities/spotify"
+	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
 	oauth2util "github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 )
@@ -24,10 +24,10 @@ type SpotifyClientInterface interface {
 	CurrentUser(ctx context.Context) (*spotify.PrivateUser, error)
 	CurrentSession() (*oauth2.Token, error)
 	RefreshToken(ctx context.Context, tok *oauth2.Token) (*oauth2.Token, error)
-	FindAllSongsByName(ctx context.Context, name []string, artist string) (*entities.FindAllSongsOutput, error)
-	CreatePlaylist(ctx context.Context, title string, description string) (*entities.CreatePlaylistOutput, error)
-	AddTracksToPlaylist(ctx context.Context, input entities.AddTracksToPlaylistClientInput) error
+	music.MusicProvider
 }
+
+const searchLimit = 10
 
 type AuthenticatedClient struct {
 	spotify.Client
@@ -111,62 +111,73 @@ func (c *SpotifyClient) RefreshToken(
 	return c.Auth.RefreshToken(ctx, tok)
 }
 
-func (c *SpotifyClient) FindAllSongsByName(
+func (c *SpotifyClient) SearchCandidates(
 	ctx context.Context,
-	name []string,
+	title string,
 	artist string,
-) (*entities.FindAllSongsOutput, error) {
-	// TODO: use goroutines to search for each song in parallel
-	result := &entities.FindAllSongsOutput{
-		Artist: artist,
-	}
+) ([]music.Candidate, error) {
+	q := fmt.Sprintf(`"%s"%%20artist:%s`, strings.ToLower(title), strings.ToLower(artist))
 
-	for _, n := range name {
-		q := fmt.Sprintf(`"%s"%%20artist:%s`, strings.ToLower(n), strings.ToLower(artist))
+	c.Logger.Debug("Searching for track", map[string]interface{}{
+		"query": q,
+	})
 
-		c.Logger.Debug("Searching for track", map[string]interface{}{
+	res, err := c.AuthenticatedClient.Search(
+		ctx,
+		q,
+		spotify.SearchTypeTrack,
+		spotify.Limit(searchLimit),
+	)
+	if err != nil {
+		c.Logger.Error("Failed to search for track", err, map[string]interface{}{
 			"query": q,
 		})
 
-		res, err := c.AuthenticatedClient.Search(
-			ctx,
-			q,
-			spotify.SearchTypeTrack,
-			spotify.Limit(1),
-		)
-		if err != nil {
-			c.Logger.Error("Failed to search for track", err, map[string]interface{}{
-				"query": q,
-			})
-
-			return nil, err
-		}
-
-		if res.Tracks != nil {
-			song := entities.Song{
-				ID:    res.Tracks.Tracks[0].ID.String(),
-				Title: res.Tracks.Tracks[0].Name,
-				Album: res.Tracks.Tracks[0].Album.Name,
-			}
-
-			c.Logger.Debug("Found track", map[string]interface{}{
-				"id":    song.ID,
-				"track": song.Title,
-				"album": song.Album,
-			})
-
-			result.Songs = append(result.Songs, song)
-		}
+		return nil, err
 	}
 
-	return result, nil
+	if res.Tracks == nil {
+		return nil, nil
+	}
+
+	candidates := make([]music.Candidate, 0, len(res.Tracks.Tracks))
+
+	for _, t := range res.Tracks.Tracks {
+		artistName := ""
+		if len(t.Artists) > 0 {
+			artistName = t.Artists[0].Name
+		}
+
+		candidates = append(candidates, music.Candidate{
+			TrackID:   t.ID.String(),
+			Title:     t.Name,
+			Artist:    artistName,
+			Album:     t.Album.Name,
+			AlbumType: mapAlbumType(t.Album.AlbumType),
+		})
+	}
+
+	return candidates, nil
+}
+
+func mapAlbumType(t string) music.AlbumType {
+	switch strings.ToLower(t) {
+	case "album":
+		return music.AlbumTypeAlbum
+	case "single":
+		return music.AlbumTypeSingle
+	case "compilation":
+		return music.AlbumTypeCompilation
+	default:
+		return music.AlbumTypeUnknown
+	}
 }
 
 func (c *SpotifyClient) CreatePlaylist(
 	ctx context.Context,
 	title string,
 	description string,
-) (*entities.CreatePlaylistOutput, error) {
+) (*music.Playlist, error) {
 	user, err := c.CurrentUser(ctx)
 	if err != nil {
 		return nil, err
@@ -184,26 +195,24 @@ func (c *SpotifyClient) CreatePlaylist(
 		return nil, err
 	}
 
-	out := &entities.CreatePlaylistOutput{
+	return &music.Playlist{
 		ID:  playlist.ID.String(),
 		URL: playlist.ExternalURLs["spotify"],
-	}
-
-	return out, nil
+	}, nil
 }
 
-func (c *SpotifyClient) AddTracksToPlaylist(
-	ctx context.Context,
-	input entities.AddTracksToPlaylistClientInput,
-) error {
+func (c *SpotifyClient) AddTracks(ctx context.Context, playlistID string, trackIDs []string) error {
 	c.Logger.Debug("Adding tracks to playlist...", map[string]interface{}{
-		"playlist_id": input.PlaylistID,
-		"song_ids":    input.Tracks,
+		"playlist_id": playlistID,
+		"song_ids":    trackIDs,
 	})
 
-	if _, err := c.AuthenticatedClient.AddTracksToPlaylist(ctx, input.GetPlaylistID(), input.GetTrackIDs()...); err != nil {
-		return err
+	ids := make([]spotify.ID, len(trackIDs))
+	for i, id := range trackIDs {
+		ids[i] = spotify.ID(id)
 	}
 
-	return nil
+	_, err := c.AuthenticatedClient.AddTracksToPlaylist(ctx, spotify.ID(playlistID), ids...)
+
+	return err
 }
