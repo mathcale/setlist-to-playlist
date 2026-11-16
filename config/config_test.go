@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -47,5 +48,20 @@ func TestLoad_SkipsPromptsWhenConfigured(t *testing.T) {
 	_, err := Load(ConfigPaths{AppConfigDir: dir, AppConfigFile: dir + "/config.toml"}, p)
 
 	assert.NoError(t, err)
-	p.AssertNotCalled(t, "Text", mock.Anything)
+	p.AssertNumberOfCalls(t, "Text", 0)
+	p.AssertNumberOfCalls(t, "Secret", 0)
+}
+
+func TestLoad_ReturnsPromptError(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	dir := t.TempDir()
+	p := &mocks.PrompterMock{}
+	p.On("Text", mock.Anything).Return("", errors.New("aborted"))
+
+	c, err := Load(ConfigPaths{AppConfigDir: dir, AppConfigFile: dir + "/config.toml"}, p)
+
+	assert.Error(t, err)
+	assert.Nil(t, c)
 }
