@@ -10,6 +10,7 @@ import (
 
 	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/setlistfm"
+	"github.com/mathcale/setlist-to-playlist/internal/pkg/prompter"
 	"github.com/mathcale/setlist-to-playlist/internal/tests/mocks"
 )
 
@@ -17,6 +18,8 @@ type RootCmdTestSuite struct {
 	suite.Suite
 	LoggerMock         *mocks.LoggerMock
 	RootCmdGatewayMock *mocks.RootCmdGatewayMock
+	PrompterMock       *mocks.PrompterMock
+	TTY                bool
 
 	Cmd RootCmdInterface
 }
@@ -25,9 +28,14 @@ func (s *RootCmdTestSuite) SetupTest() {
 	s.LoggerMock = new(mocks.LoggerMock)
 	s.RootCmdGatewayMock = new(mocks.RootCmdGatewayMock)
 
+	s.PrompterMock = new(mocks.PrompterMock)
+	s.TTY = false
+
 	s.Cmd = NewRootCmd(
 		s.LoggerMock,
 		s.RootCmdGatewayMock,
+		s.PrompterMock,
+		func() bool { return s.TTY },
 	)
 }
 
@@ -36,6 +44,8 @@ func (s *RootCmdTestSuite) cleanMocks() {
 	s.LoggerMock.Calls = nil
 	s.RootCmdGatewayMock.ExpectedCalls = nil
 	s.RootCmdGatewayMock.Calls = nil
+	s.PrompterMock.ExpectedCalls = nil
+	s.PrompterMock.Calls = nil
 }
 
 func TestRootCmd(t *testing.T) {
@@ -363,5 +373,72 @@ func (s *RootCmdTestSuite) TestRun() {
 		s.Contains(msgs, "Authenticating on Spotify...")
 		s.Contains(msgs, "Fetching songs on Spotify...")
 		s.Contains(msgs, "Creating playlist on Spotify...")
+	})
+}
+
+func (s *RootCmdTestSuite) TestProviderMenu() {
+	url := "https://www.setlist.fm/setlist/x"
+	options := []prompter.Option{
+		{Label: "Spotify", Value: "spotify"},
+		{Label: "Apple Music", Value: "apple-music"},
+	}
+
+	s.Run("Should use the menu choice on a TTY without --provider", func() {
+		defer s.cleanMocks()
+		s.TTY = true
+
+		s.PrompterMock.On("Select", mock.Anything, options).Return("apple-music", nil)
+		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderAppleMusic).Return(music.ErrProviderUnavailable)
+
+		cmd := s.Cmd.Build()
+		s.NoError(cmd.Flags().Set("url", url))
+		s.NoError(cmd.RunE(cmd, nil))
+
+		s.PrompterMock.AssertNumberOfCalls(s.T(), "Select", 1)
+		s.RootCmdGatewayMock.AssertCalled(s.T(), "CheckProvider", music.ProviderAppleMusic)
+	})
+
+	s.Run("Should default to spotify without prompting when there is no TTY", func() {
+		defer s.cleanMocks()
+		s.TTY = false
+
+		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderSpotify).Return(music.ErrProviderUnavailable)
+
+		cmd := s.Cmd.Build()
+		s.NoError(cmd.RunE(cmd, nil))
+
+		s.PrompterMock.AssertNotCalled(s.T(), "Select", mock.Anything, mock.Anything)
+		s.RootCmdGatewayMock.AssertCalled(s.T(), "CheckProvider", music.ProviderSpotify)
+	})
+
+	s.Run("Should not show the menu when --provider is explicit, even on a TTY", func() {
+		defer s.cleanMocks()
+		s.TTY = true
+
+		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderAppleMusic).Return(music.ErrProviderUnavailable)
+
+		cmd := s.Cmd.Build()
+		s.NoError(cmd.Flags().Set("provider", "apple-music"))
+		s.NoError(cmd.RunE(cmd, nil))
+
+		s.PrompterMock.AssertNotCalled(s.T(), "Select", mock.Anything, mock.Anything)
+		s.RootCmdGatewayMock.AssertCalled(s.T(), "CheckProvider", music.ProviderAppleMusic)
+	})
+
+	s.Run("Should abort with the menu error", func() {
+		defer s.cleanMocks()
+		s.TTY = true
+
+		menuErr := errors.New("user aborted")
+		s.PrompterMock.On("Select", mock.Anything, options).Return("", menuErr)
+
+		cmd := s.Cmd.Build()
+		err := cmd.RunE(cmd, nil)
+
+		s.ErrorIs(err, menuErr)
+		s.RootCmdGatewayMock.AssertNotCalled(s.T(), "CheckProvider", mock.Anything)
 	})
 }
