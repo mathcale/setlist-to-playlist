@@ -142,6 +142,17 @@ func (s *RootCmdGatewayTestSuite) TestAuthenticate() {
 		s.Error(s.Gateway.Authenticate(context.Background(), music.ProviderSpotify))
 	})
 
+	s.Run("Should re-authenticate when the credentials are expired", func() {
+		defer s.cleanMocks()
+
+		s.LoggerMock.On("Warn", mock.Anything, mock.Anything).Return()
+		s.AuthenticatorMock.On("Authenticate", mock.Anything).Return(music.ErrCredentialsExpired)
+		s.AuthenticatorMock.On("Reauthenticate", mock.Anything).Return(nil)
+
+		s.NoError(s.Gateway.Authenticate(context.Background(), music.ProviderSpotify))
+		s.AuthenticatorMock.AssertNumberOfCalls(s.T(), "Reauthenticate", 1)
+	})
+
 	s.Run("Should not authenticate an unregistered provider", func() {
 		defer s.cleanMocks()
 

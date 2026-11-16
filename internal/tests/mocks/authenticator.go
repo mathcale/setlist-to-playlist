@@ -16,6 +16,11 @@ func (m *AuthenticatorMock) Authenticate(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *AuthenticatorMock) Reauthenticate(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 // CredentialsEnsurerMock is a fake spotify.CredentialsEnsurer.
 type CredentialsEnsurerMock struct {
 	mock.Mock

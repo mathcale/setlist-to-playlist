@@ -59,3 +59,9 @@ func (a *SpotifyAuthenticator) Authenticate(ctx context.Context) error {
 
 	return a.useCase.Execute(ctx, a.pkceCodes, a.state)
 }
+
+// Reauthenticate re-runs the flow. Spotify never reports expired credentials
+// (its client refreshes tokens itself), so this is just Authenticate.
+func (a *SpotifyAuthenticator) Reauthenticate(ctx context.Context) error {
+	return a.Authenticate(ctx)
+}

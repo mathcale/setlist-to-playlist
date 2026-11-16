@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/mathcale/setlist-to-playlist/internal/entities/applemusic"
+	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/tests/mocks"
 )
 
@@ -86,4 +87,50 @@ func TestAuthenticate(t *testing.T) {
 
 		assert.EqualError(t, f.auth.Authenticate(context.Background()), "401")
 	})
+}
+
+func TestReauthenticate(t *testing.T) {
+	t.Run("ignores saved tokens, asks again, saves and validates", func(t *testing.T) {
+		f := newFixture()
+		f.prompter.On("Secret", mock.Anything).Return("bearer", nil).Once()
+		f.prompter.On("Secret", mock.Anything).Return("mut", nil).Once()
+		f.persistence.On("Write", tokens).Return(nil)
+		f.client.On("SetAuth", tokens).Return()
+		f.client.On("Storefront", mock.Anything).Return("us", nil)
+		f.logger.On("Info", mock.Anything, mock.Anything).Return()
+
+		assert.NoError(t, f.auth.Reauthenticate(context.Background()))
+
+		f.persistence.AssertNotCalled(t, "Read")
+		f.prompter.AssertNumberOfCalls(t, "Secret", 2)
+		f.persistence.AssertCalled(t, "Write", tokens)
+	})
+
+	t.Run("returns the storefront error of the new tokens", func(t *testing.T) {
+		f := newFixture()
+		f.prompter.On("Secret", mock.Anything).Return("x", nil)
+		f.persistence.On("Write", mock.Anything).Return(nil)
+		f.client.On("SetAuth", mock.Anything).Return()
+		f.client.On("Storefront", mock.Anything).Return("", music.ErrCredentialsExpired)
+
+		assert.ErrorIs(t, f.auth.Reauthenticate(context.Background()), music.ErrCredentialsExpired)
+	})
+}
+
+func TestBearerPrefixIsStripped(t *testing.T) {
+	for _, in := range []string{"Bearer bearer", "bearer bearer", "  BEARER   bearer  ", "bearer"} {
+		t.Run(in, func(t *testing.T) {
+			f := newFixture()
+			f.persistence.On("Read").Return(nil, errors.New("missing"))
+			f.prompter.On("Secret", mock.Anything).Return(in, nil).Once()
+			f.prompter.On("Secret", mock.Anything).Return("mut", nil).Once()
+			f.persistence.On("Write", tokens).Return(nil)
+			f.client.On("SetAuth", tokens).Return()
+			f.client.On("Storefront", mock.Anything).Return("us", nil)
+			f.logger.On("Info", mock.Anything, mock.Anything).Return()
+
+			assert.NoError(t, f.auth.Authenticate(context.Background()))
+			f.persistence.AssertCalled(t, "Write", tokens)
+		})
+	}
 }
