@@ -18,6 +18,8 @@ By default the playlist is created on Spotify. Use `--provider` (or `-p`) to pic
 setlist-to-playlist --provider apple-music --url https://www.setlist.fm/setlist/blink182/2024/autodromo-de-interlagos-sao-paulo-brazil-53aa1325.html
 ```
 
+If you omit `--provider` and run the CLI in an interactive terminal, a menu asks you to choose between Spotify and Apple Music. When there is no terminal (CI, pipes), it uses Spotify without prompting. An explicit `--provider` never shows the menu.
+
 ## Installation
 
 ### Step 1: downloading the binary

@@ -157,7 +157,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 
 	rootCmdGw := rootcmd_gw.NewRootCmdGateway(l, providers, getSetlistByIDUseCase)
 
-	rootCmd := commands.NewRootCmd(l, rootCmdGw)
+	rootCmd := commands.NewRootCmd(l, rootCmdGw, di.Prompter, commands.StdinIsTerminal)
 	cli := cli.NewCLI(rootCmd.Build())
 
 	return &Dependencies{

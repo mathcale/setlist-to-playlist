@@ -10,6 +10,7 @@ import (
 	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands/gateways"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
+	"github.com/mathcale/setlist-to-playlist/internal/pkg/prompter"
 )
 
 type RootCmdInterface interface {
@@ -17,17 +18,24 @@ type RootCmdInterface interface {
 }
 
 type RootCmd struct {
-	Logger  logger.LoggerInterface
-	Gateway gateways.RootCmdGatewayInterface
+	Logger   logger.LoggerInterface
+	Gateway  gateways.RootCmdGatewayInterface
+	Prompter prompter.Prompter
+	// IsTerminal reports whether stdin is interactive; it is a seam so tests can fake it.
+	IsTerminal IsTerminalFunc
 }
 
 func NewRootCmd(
 	l logger.LoggerInterface,
 	gw gateways.RootCmdGatewayInterface,
+	p prompter.Prompter,
+	isTerminal IsTerminalFunc,
 ) RootCmdInterface {
 	return &RootCmd{
-		Logger:  l,
-		Gateway: gw,
+		Logger:     l,
+		Gateway:    gw,
+		Prompter:   p,
+		IsTerminal: isTerminal,
 	}
 }
 
@@ -107,15 +115,29 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// resolveProvider reads --provider. When the flag is absent this is where the
-// interactive provider menu will plug in (ATMT-170); for now it defaults to
-// Spotify.
+// resolveProvider reads --provider. When the flag is absent it shows a select
+// menu if stdin is a terminal, and otherwise defaults to Spotify so non-interactive
+// runs never hang.
 func (rc *RootCmd) resolveProvider(cmd *cobra.Command) (music.ProviderID, error) {
-	raw, _ := cmd.Flags().GetString("provider")
+	if cmd.Flags().Changed("provider") {
+		raw, _ := cmd.Flags().GetString("provider")
+		return music.ParseProviderID(raw)
+	}
 
-	if !cmd.Flags().Changed("provider") {
+	if !rc.IsTerminal() {
 		return music.DefaultProvider, nil
 	}
 
-	return music.ParseProviderID(raw)
+	ids := music.ProviderIDs()
+	options := make([]prompter.Option, 0, len(ids))
+	for _, id := range ids {
+		options = append(options, prompter.Option{Label: id.DisplayName(), Value: string(id)})
+	}
+
+	choice, err := rc.Prompter.Select("Which music provider do you want to use?", options)
+	if err != nil {
+		return "", err
+	}
+
+	return music.ParseProviderID(choice)
 }

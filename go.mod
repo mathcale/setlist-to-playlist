@@ -8,6 +8,7 @@ retract v1.0.0
 
 require (
 	github.com/charmbracelet/huh v0.4.2
+	github.com/charmbracelet/x/term v0.1.1
 	github.com/dchest/uniuri v1.2.0
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/nirasan/go-oauth-pkce-code-verifier v0.0.0-20220510032225-4f9f17eaec4c
@@ -30,7 +31,6 @@ require (
 	github.com/charmbracelet/x/ansi v0.1.1 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240524151031-ff83003bf67a // indirect
 	github.com/charmbracelet/x/input v0.1.1 // indirect
-	github.com/charmbracelet/x/term v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
