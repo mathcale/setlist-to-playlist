@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -202,6 +203,26 @@ func TestSearchCandidates(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, "studio", best.TrackID)
 	})
+}
+
+func TestConcurrentSetAuthAndRequests(t *testing.T) {
+	h := new(mocks.HttpClientMock)
+	h.On("Post", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	c := newClient(h)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			c.SetAuth(applemusic.AuthData{BearerToken: "b", MediaUserToken: "m"})
+		}()
+		go func() {
+			defer wg.Done()
+			_ = c.AddTracks(context.Background(), "p", []string{"1"})
+		}()
+	}
+	wg.Wait()
 }
 
 func TestCreatePlaylist(t *testing.T) {
