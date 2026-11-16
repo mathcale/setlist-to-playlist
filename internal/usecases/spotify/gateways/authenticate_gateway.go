@@ -109,9 +109,7 @@ func (gw *SpotifyUserAuthenticationUseCaseGateway) persistToken() error {
 		return err
 	}
 
-	gw.Logger.Debug("Persisting Spotify session token locally", map[string]interface{}{
-		"token": token,
-	})
+	gw.Logger.Debug("Persisting Spotify session token locally", nil)
 
 	authData := entities.NewSpotifyUserAuthData(
 		token.AccessToken,

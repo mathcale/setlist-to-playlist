@@ -2,6 +2,7 @@ package plaintext
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -69,6 +70,40 @@ func (s *PlainTextPersistenceStrategyTestSuite) TestRead() {
 		s.Error(err)
 		s.Equal(expectedError, err)
 		s.Nil(data)
+	})
+}
+
+func (s *PlainTextPersistenceStrategyTestSuite) TestNeverLogsContents() {
+	secret := "super-secret-token-value"
+	data := []byte(`{"access_token":"` + secret + `"}`)
+
+	assertNoSecret := func() {
+		s.NotEmpty(s.LoggerMock.Calls)
+		for _, c := range s.LoggerMock.Calls {
+			s.NotContains(fmt.Sprintf("%v", c.Arguments), secret)
+		}
+	}
+
+	s.Run("Read does not log file contents", func() {
+		defer s.resetMocks()
+
+		s.FSDriverMock.On("Read", s.FilePath).Return(data, nil)
+		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return()
+
+		_, err := s.PlainTextPersistenceStrategy.Read()
+
+		s.NoError(err)
+		assertNoSecret()
+	})
+
+	s.Run("Write does not log file contents", func() {
+		defer s.resetMocks()
+
+		s.FSDriverMock.On("Write", s.FilePath, mock.Anything, mock.Anything).Return(nil)
+		s.LoggerMock.On("Debug", mock.Anything, mock.Anything).Return()
+
+		s.NoError(s.PlainTextPersistenceStrategy.Write(data))
+		assertNoSecret()
 	})
 }
 

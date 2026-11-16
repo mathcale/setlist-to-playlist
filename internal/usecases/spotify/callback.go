@@ -38,8 +38,7 @@ func (uc *SpotifyAuthCallbackUseCase) Execute(
 	genCodes oauth2util.GenerateOutput,
 ) (*spotify.Client, error) {
 	uc.Logger.Debug("Fetching Spotify token", map[string]interface{}{
-		"state":     state,
-		"pkceCodes": genCodes,
+		"state": state,
 	})
 
 	token, err := uc.Client.GetToken(ctx, r, state, genCodes)
@@ -47,9 +46,7 @@ func (uc *SpotifyAuthCallbackUseCase) Execute(
 		return nil, err
 	}
 
-	uc.Logger.Debug("Spotify token fetched", map[string]interface{}{
-		"token": token,
-	})
+	uc.Logger.Debug("Spotify token fetched", nil)
 
 	if st := r.FormValue("state"); st != state {
 		return nil, fmt.Errorf("state mismatch: %s != %s", st, state)
