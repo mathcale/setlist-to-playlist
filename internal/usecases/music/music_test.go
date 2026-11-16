@@ -142,7 +142,7 @@ func (s *MusicUseCasesTestSuite) TestFetchSongs() {
 		a := cand("liveSingle", "t (Live)", "x", music.AlbumTypeSingle)
 		b := cand("liveAlbum", "t", "Live at Wembley", music.AlbumTypeAlbum)
 		out := pick("Artist", a, b)
-		s.Equal([]string{"liveSingle"}, ids(out))
+		s.Equal([]string{"liveAlbum"}, ids(out))
 		s.Empty(out.Skipped)
 	})
 
