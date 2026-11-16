@@ -1,6 +1,6 @@
 # Setlist to Playlist
 
-Cool CLI that creates a Spotify playlist based on a Setlist.fm entry, written in Go.
+Cool CLI that creates a Spotify or Apple Music playlist based on a Setlist.fm entry, written in Go.
 
 [![Continuous Integration](https://github.com/mathcale/setlist-to-playlist/actions/workflows/ci.yaml/badge.svg)](https://github.com/mathcale/setlist-to-playlist/actions/workflows/ci.yaml)
 
@@ -10,6 +10,12 @@ Just run the following command, replacing the URL with the one you want to creat
 
 ```sh
 setlist-to-playlist --url https://www.setlist.fm/setlist/blink182/2024/autodromo-de-interlagos-sao-paulo-brazil-53aa1325.html
+```
+
+By default the playlist is created on Spotify. Use `--provider` (or `-p`) to pick the service, either `spotify` (the default) or `apple-music`:
+
+```sh
+setlist-to-playlist --provider apple-music --url https://www.setlist.fm/setlist/blink182/2024/autodromo-de-interlagos-sao-paulo-brazil-53aa1325.html
 ```
 
 ## Installation
@@ -36,6 +42,22 @@ setlist-to-playlist --url https://www.setlist.fm/setlist/blink182/2024/autodromo
 ### Step 4: Configuring the CLI
 
 On the first run, the CLI will ask for the credentials you generated in the previous steps. Just copy and paste them when prompted and the CLI will store them in a TOML configuration file in your home directory (`$HOME/.config/setlist-to-playlist` on Linux and `$HOME/Library/Application Support/setlist-to-playlist` on macOS).
+
+### Apple Music setup (optional)
+
+Only needed for `--provider apple-music`. Apple does not offer a free public API for this, so the CLI uses the same tokens as the [music.apple.com](https://music.apple.com) web player. Sign in there, then:
+
+1. **Bearer token:** open your browser devtools, go to the Network tab, reload the page and click any request to `amp-api.music.apple.com`. Copy the value of the `Authorization` request header **without** the `Bearer ` prefix
+2. **Media user token:** in devtools, open Application (Chrome) or Storage (Firefox/Safari) > Cookies > `https://music.apple.com` and copy the value of the `media-user-token` cookie
+
+The CLI asks for both on the first Apple Music run and stores them next to the other credentials.
+
+A few things to keep in mind:
+
+- This approach is unofficial and can break whenever Apple changes the web player
+- The tokens expire periodically; when that happens the CLI will ask for new ones
+- The playlist link printed at the end is a library link, so it only works for the account that owns the playlist
+- Library playlists may take a moment to show up in the Music app
 
 ## Development
 

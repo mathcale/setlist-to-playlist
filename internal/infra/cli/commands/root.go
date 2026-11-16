@@ -85,11 +85,6 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 
 	songs, err := rc.Gateway.FetchSongs(cmd.Context(), provider, set.Songs(), set.ArtistName())
 	if err != nil {
-		if errors.Is(err, music.ErrNotImplemented) {
-			rc.Logger.Info(err.Error(), nil)
-			return nil
-		}
-
 		rc.Logger.Error(fmt.Sprintf("Failed to fetch songs from %s", name), err, nil)
 		return err
 	}
