@@ -39,7 +39,8 @@ func (p *PlainTextPersistenceStrategy) Read() ([]byte, error) {
 	}
 
 	p.Logger.Debug("Data read from file", map[string]interface{}{
-		"data": string(data),
+		"path":   p.Path,
+		"length": len(data),
 	})
 
 	return data, nil
@@ -47,8 +48,8 @@ func (p *PlainTextPersistenceStrategy) Read() ([]byte, error) {
 
 func (p *PlainTextPersistenceStrategy) Write(data []byte) error {
 	p.Logger.Debug("Writing data to file", map[string]interface{}{
-		"path": p.Path,
-		"data": string(data),
+		"path":   p.Path,
+		"length": len(data),
 	})
 
 	if err := p.FSDriver.Write(p.Path, data, 0644); err != nil {

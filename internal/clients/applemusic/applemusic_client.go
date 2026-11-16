@@ -52,7 +52,17 @@ func (c *Client) SetAuth(auth applemusic.AuthData) {
 	c.storefront = ""
 }
 
+// headers snapshots the auth under the lock. It must not be called while c.mu
+// is already held; use headersLocked there.
 func (c *Client) headers() map[string]interface{} {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.headersLocked()
+}
+
+// headersLocked requires c.mu to be held by the caller.
+func (c *Client) headersLocked() map[string]interface{} {
 	return map[string]interface{}{
 		"Authorization":    "Bearer " + c.auth.BearerToken,
 		"Music-User-Token": c.auth.MediaUserToken,
@@ -82,7 +92,7 @@ func (c *Client) Storefront(_ context.Context) (string, error) {
 	}
 
 	var resp storefrontResponse
-	if err := c.httpClient.Get(StorefrontPath, c.headers(), &resp); err != nil {
+	if err := c.httpClient.Get(StorefrontPath, c.headersLocked(), &resp); err != nil {
 		return "", mapErr(err)
 	}
 

@@ -45,14 +45,14 @@ func (a *Authenticator) Authenticate(ctx context.Context) error {
 	return a.authenticate(ctx, false)
 }
 
-// Reauthenticate ignores the saved tokens: it asks for new ones, saves them
-// and validates them.
+// Reauthenticate ignores the saved tokens: it asks for new ones, validates
+// them and saves them only once accepted.
 func (a *Authenticator) Reauthenticate(ctx context.Context) error {
 	return a.authenticate(ctx, true)
 }
 
 func (a *Authenticator) authenticate(ctx context.Context, fresh bool) error {
-	auth, err := a.load(fresh)
+	auth, entered, err := a.load(fresh)
 	if err != nil {
 		return err
 	}
@@ -64,27 +64,35 @@ func (a *Authenticator) authenticate(ctx context.Context, fresh bool) error {
 		return err
 	}
 
+	// Newly entered tokens are saved only once Apple accepted them.
+	if entered {
+		if err := a.persistence.Write(*auth); err != nil {
+			return err
+		}
+	}
+
 	a.logger.Info(fmt.Sprintf("Authenticated on Apple Music (storefront: %s)", storefront), nil)
 
 	return nil
 }
 
-// load returns saved tokens, or asks for and saves them when missing.
-func (a *Authenticator) load(fresh bool) (*applemusic.AuthData, error) {
+// load returns saved tokens, or asks for new ones when missing. The boolean is
+// true when the tokens were just entered (and so still need to be saved).
+func (a *Authenticator) load(fresh bool) (*applemusic.AuthData, bool, error) {
 	if !fresh {
 		if saved, err := a.persistence.Read(); err == nil && saved.Validate() == nil {
-			return saved, nil
+			return saved, false, nil
 		}
 	}
 
 	bearer, err := a.prompter.Secret("What's your Apple Music web-player bearer token?")
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	mediaUserToken, err := a.prompter.Secret("What's your Apple Music media-user-token cookie value?")
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	auth := applemusic.AuthData{
@@ -93,14 +101,10 @@ func (a *Authenticator) load(fresh bool) (*applemusic.AuthData, error) {
 	}
 
 	if err := auth.Validate(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	if err := a.persistence.Write(auth); err != nil {
-		return nil, err
-	}
-
-	return &auth, nil
+	return &auth, true, nil
 }
 
 // stripBearerPrefix trims whitespace and a leading "Bearer " (any case), since
