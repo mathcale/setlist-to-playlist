@@ -22,9 +22,9 @@ type SetlistFM struct {
 }
 
 type Spotify struct {
-	ClientID     string `mapstructure:"client_id"`
-	ClientSecret string `mapstructure:"client_secret"`
-	RedirectURL  string `mapstructure:"redirect_url"`
+	// Client ID/secret are not loaded here: they are asked for on first
+	// Spotify use (see SpotifyCredentialStore).
+	RedirectURL string `mapstructure:"redirect_url"`
 }
 
 type Config struct {

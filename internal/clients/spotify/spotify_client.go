@@ -44,7 +44,7 @@ type CredentialsProvider interface {
 type SpotifyClient struct {
 	redirURL            string
 	credentials         CredentialsProvider
-	authOnce            sync.Once
+	authMu              sync.Mutex
 	auth                *spotifyauth.Authenticator
 	AuthenticatedClient AuthenticatedClient
 	Logger              logger.LoggerInterface
@@ -63,21 +63,31 @@ func NewSpotifyClient(
 	}
 }
 
-// Auth builds the OAuth config on first use, so credentials must be available
-// by then.
+// Auth builds the OAuth config on first use, once credentials are available.
+// It is not cached while the credentials are still empty, so calling it too
+// early cannot permanently pin an unusable config.
 func (c *SpotifyClient) Auth() *spotifyauth.Authenticator {
-	c.authOnce.Do(func() {
-		id, secret := c.credentials.Credentials()
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
 
-		c.auth = spotifyauth.New(
-			spotifyauth.WithRedirectURL(c.redirURL),
-			spotifyauth.WithClientID(id),
-			spotifyauth.WithClientSecret(secret),
-			spotifyauth.WithScopes(spotifyauth.ScopeUserReadEmail, spotifyauth.ScopePlaylistModifyPublic),
-		)
-	})
+	if c.auth != nil {
+		return c.auth
+	}
 
-	return c.auth
+	id, secret := c.credentials.Credentials()
+
+	auth := spotifyauth.New(
+		spotifyauth.WithRedirectURL(c.redirURL),
+		spotifyauth.WithClientID(id),
+		spotifyauth.WithClientSecret(secret),
+		spotifyauth.WithScopes(spotifyauth.ScopeUserReadEmail, spotifyauth.ScopePlaylistModifyPublic),
+	)
+
+	if id != "" && secret != "" {
+		c.auth = auth
+	}
+
+	return auth
 }
 
 func (c *SpotifyClient) GetAuthURL(state string, genCodes oauth2util.GenerateOutput) string {
