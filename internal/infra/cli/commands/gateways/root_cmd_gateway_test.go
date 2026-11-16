@@ -8,68 +8,46 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	spotifyclient "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/setlistfm"
-	oauth2util "github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 	"github.com/mathcale/setlist-to-playlist/internal/tests/mocks"
 )
 
 type RootCmdGatewayTestSuite struct {
 	suite.Suite
-	LoggerMock                           *mocks.LoggerMock
-	WebServerMock                        *mocks.WebServerMock
-	SpotifyClientMock                    *mocks.SpotifyClientMock
-	GetSetlistByIDUseCaseMock            *mocks.SetlistFMGetSetlistByIDUseCaseMock
-	FetchSongsUseCaseMock                *mocks.FetchSongsUseCaseMock
-	CreatePlaylistUseCaseMock            *mocks.CreatePlaylistUseCaseMock
-	AddTracksUseCaseMock                 *mocks.AddTracksUseCaseMock
-	SpotifyUserAuthenticationUseCaseMock *mocks.SpotifyUserAuthenticationUseCaseMock
-	GeneratedPKCECodes                   oauth2util.GenerateOutput
-	State                                string
-	SpotifyClientChannel                 chan spotifyclient.AuthenticatedClient
+	LoggerMock                *mocks.LoggerMock
+	AuthenticatorMock         *mocks.AuthenticatorMock
+	GetSetlistByIDUseCaseMock *mocks.SetlistFMGetSetlistByIDUseCaseMock
+	FetchSongsUseCaseMock     *mocks.FetchSongsUseCaseMock
+	CreatePlaylistUseCaseMock *mocks.CreatePlaylistUseCaseMock
+	AddTracksUseCaseMock      *mocks.AddTracksUseCaseMock
 
 	Gateway RootCmdGatewayInterface
 }
 
 func (s *RootCmdGatewayTestSuite) SetupTest() {
 	s.LoggerMock = new(mocks.LoggerMock)
-	s.WebServerMock = new(mocks.WebServerMock)
-	s.SpotifyClientMock = new(mocks.SpotifyClientMock)
+	s.AuthenticatorMock = new(mocks.AuthenticatorMock)
 	s.GetSetlistByIDUseCaseMock = new(mocks.SetlistFMGetSetlistByIDUseCaseMock)
 	s.FetchSongsUseCaseMock = new(mocks.FetchSongsUseCaseMock)
 	s.CreatePlaylistUseCaseMock = new(mocks.CreatePlaylistUseCaseMock)
 	s.AddTracksUseCaseMock = new(mocks.AddTracksUseCaseMock)
-	s.SpotifyUserAuthenticationUseCaseMock = new(mocks.SpotifyUserAuthenticationUseCaseMock)
-	s.GeneratedPKCECodes = oauth2util.GenerateOutput{
-		CodeChallenge: "any-code-challenge",
-		CodeVerifier:  "any-code-verifier",
-	}
-	s.State = "any-state"
-	s.SpotifyClientChannel = make(chan spotifyclient.AuthenticatedClient)
 
 	s.Gateway = NewRootCmdGateway(
 		s.LoggerMock,
-		s.WebServerMock,
-		s.SpotifyClientMock,
+		s.AuthenticatorMock,
 		s.GetSetlistByIDUseCaseMock,
 		s.FetchSongsUseCaseMock,
 		s.CreatePlaylistUseCaseMock,
 		s.AddTracksUseCaseMock,
-		s.SpotifyUserAuthenticationUseCaseMock,
-		s.GeneratedPKCECodes,
-		s.State,
-		s.SpotifyClientChannel,
 	)
 }
 
 func (s *RootCmdGatewayTestSuite) cleanMocks() {
 	s.LoggerMock.ExpectedCalls = nil
 	s.LoggerMock.Calls = nil
-	s.WebServerMock.ExpectedCalls = nil
-	s.WebServerMock.Calls = nil
-	s.SpotifyClientMock.ExpectedCalls = nil
-	s.SpotifyClientMock.Calls = nil
+	s.AuthenticatorMock.ExpectedCalls = nil
+	s.AuthenticatorMock.Calls = nil
 	s.GetSetlistByIDUseCaseMock.ExpectedCalls = nil
 	s.GetSetlistByIDUseCaseMock.Calls = nil
 	s.FetchSongsUseCaseMock.ExpectedCalls = nil
@@ -78,8 +56,6 @@ func (s *RootCmdGatewayTestSuite) cleanMocks() {
 	s.CreatePlaylistUseCaseMock.Calls = nil
 	s.AddTracksUseCaseMock.ExpectedCalls = nil
 	s.AddTracksUseCaseMock.Calls = nil
-	s.SpotifyUserAuthenticationUseCaseMock.ExpectedCalls = nil
-	s.SpotifyUserAuthenticationUseCaseMock.Calls = nil
 }
 
 func TestRootCmdGateway(t *testing.T) {
@@ -147,39 +123,24 @@ func (s *RootCmdGatewayTestSuite) TestGetTracksFromSetlist() {
 	})
 }
 
-func (s *RootCmdGatewayTestSuite) TestStartWebServer() {
-	s.Run("Should start the web server", func() {
+func (s *RootCmdGatewayTestSuite) TestAuthenticate() {
+	s.Run("Should delegate to the Authenticator", func() {
 		defer s.cleanMocks()
 
-		s.WebServerMock.On("Start").Return()
+		s.AuthenticatorMock.On("Authenticate", mock.Anything).Return(nil)
 
-		s.Gateway.StartWebServer()
-
-		s.WebServerMock.AssertCalled(s.T(), "Start")
-	})
-}
-
-func (s *RootCmdGatewayTestSuite) TestHandleSpotifyAuthentication() {
-	s.Run("Should handle Spotify authentication", func() {
-		defer s.cleanMocks()
-
-		s.SpotifyUserAuthenticationUseCaseMock.
-			On("Execute", mock.Anything, s.GeneratedPKCECodes, s.State).
-			Return(nil)
-
-		err := s.Gateway.HandleSpotifyAuthentication(context.Background())
+		err := s.Gateway.Authenticate(context.Background())
 
 		s.NoError(err)
+		s.AuthenticatorMock.AssertNumberOfCalls(s.T(), "Authenticate", 1)
 	})
 
-	s.Run("Should return an error when failing to authenticate on Spotify", func() {
+	s.Run("Should return an error when authentication fails", func() {
 		defer s.cleanMocks()
 
-		s.SpotifyUserAuthenticationUseCaseMock.
-			On("Execute", mock.Anything, s.GeneratedPKCECodes, s.State).
-			Return(errors.New("any-error"))
+		s.AuthenticatorMock.On("Authenticate", mock.Anything).Return(errors.New("any-error"))
 
-		err := s.Gateway.HandleSpotifyAuthentication(context.Background())
+		err := s.Gateway.Authenticate(context.Background())
 
 		s.Error(err)
 	})

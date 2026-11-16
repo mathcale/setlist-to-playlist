@@ -98,26 +98,6 @@ func Load(configPaths ConfigPaths, p prompter.Prompter) (*Config, error) {
 		viper.WriteConfig()
 	}
 
-	if ok := viper.IsSet("spotify.client_id"); !ok {
-		clientID, err := p.Text("What's your Spotify client ID?")
-		if err != nil {
-			return nil, err
-		}
-
-		viper.Set("spotify.client_id", clientID)
-		viper.WriteConfig()
-	}
-
-	if ok := viper.IsSet("spotify.client_secret"); !ok {
-		secret, err := p.Text("What's your Spotify client secret?")
-		if err != nil {
-			return nil, err
-		}
-
-		viper.Set("spotify.client_secret", secret)
-		viper.WriteConfig()
-	}
-
 	if err := viper.SafeWriteConfigAs(configPaths.AppConfigFile); err != nil {
 		if _, ok := err.(viper.ConfigFileAlreadyExistsError); !ok {
 			return nil, err

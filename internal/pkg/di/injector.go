@@ -19,6 +19,7 @@ import (
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/httpclient"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
+	"github.com/mathcale/setlist-to-playlist/internal/pkg/prompter"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/responsehandler"
 	music_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/music"
 	setlistfm_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/setlistfm"
@@ -33,16 +34,22 @@ type DependencyInjectorInterface interface {
 type DependencyInjector struct {
 	Config      *config.Config
 	ConfigPaths config.ConfigPaths
+	Prompter    prompter.Prompter
 }
 
 type Dependencies struct {
 	CLI cli.CLIInterface
 }
 
-func NewDependencyInjector(c *config.Config, configPaths config.ConfigPaths) *DependencyInjector {
+func NewDependencyInjector(
+	c *config.Config,
+	configPaths config.ConfigPaths,
+	p prompter.Prompter,
+) *DependencyInjector {
 	return &DependencyInjector{
 		Config:      c,
 		ConfigPaths: configPaths,
+		Prompter:    p,
 	}
 }
 
@@ -71,11 +78,14 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		di.Config.SetlistFM.APIKey,
 	)
 
+	// Spotify credentials are asked for on first Spotify use (by the
+	// authenticator); the client reads them lazily after that.
+	spotifyCredentials := config.NewSpotifyCredentialStore(di.Prompter)
+
 	spotifyClient := spotify_client.NewSpotifyClient(
 		l,
 		di.Config.Spotify.RedirectURL,
-		di.Config.Spotify.ClientID,
-		di.Config.Spotify.ClientSecret,
+		spotifyCredentials,
 	)
 
 	plainTextPersistence := plaintext.NewPlainTextPersistenceStrategy(
@@ -115,18 +125,21 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	webRouter := web.NewWebRouter(spotifyCallbackHandler)
 	webServer := web.NewWebServer(di.Config.WebServerPort, l, webRouter.Build())
 
+	spotifyAuthenticator := spotify_ucs.NewSpotifyAuthenticator(
+		spotifyCredentials,
+		webServer,
+		spotifyUserAuthenticationUseCase,
+		*genCodes,
+		state,
+	)
+
 	rootCmdGw := rootcmd_gw.NewRootCmdGateway(
 		l,
-		webServer,
-		spotifyClient,
+		spotifyAuthenticator,
 		getSetlistByIDUseCase,
 		fetchSongsUseCase,
 		createPlaylistUseCase,
 		addTracksUseCase,
-		spotifyUserAuthenticationUseCase,
-		*genCodes,
-		state,
-		ch,
 	)
 
 	rootCmd := commands.NewRootCmd(l, rootCmdGw)

@@ -3,64 +3,44 @@ package gateways
 import (
 	"context"
 
-	spotifyclient "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/setlistfm"
-	"github.com/mathcale/setlist-to-playlist/internal/infra/web"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
-	oauth2util "github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 	music_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/music"
 	setlistfm_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/setlistfm"
-	spotify_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
 )
 
 type RootCmdGatewayInterface interface {
 	GetTracksFromSetlist(setlistfmURL string) (*setlistfm.Set, error)
-	StartWebServer()
-	HandleSpotifyAuthentication(context.Context) error
+	Authenticate(context.Context) error
 	FetchSongs(ctx context.Context, songTitles []string, artist string) (*music.FetchSongsOutput, error)
 	CreatePlaylist(ctx context.Context, playlistName string, songs []music.Song) (*string, error)
 }
 
 type RootCmdGateway struct {
-	Logger                           logger.LoggerInterface
-	WebServer                        web.WebServerInterface
-	SpotifyClient                    spotifyclient.SpotifyClientInterface
-	GetSetlistByIDUseCase            setlistfm_ucs.GetSetlistByIDUseCaseInterface
-	FetchSongsUseCase                music_ucs.FetchSongsUseCaseInterface
-	CreatePlaylistUseCase            music_ucs.CreatePlaylistUseCaseInterface
-	AddTracksUseCase                 music_ucs.AddTracksUseCaseInterface
-	SpotifyUserAuthenticationUseCase spotify_ucs.SpotifyUserAuthenticationUseCaseInterface
-	GeneratedPKCECodes               oauth2util.GenerateOutput
-	State                            string
-	SpotifyClientChannel             chan spotifyclient.AuthenticatedClient
+	Logger                logger.LoggerInterface
+	Authenticator         music.Authenticator
+	GetSetlistByIDUseCase setlistfm_ucs.GetSetlistByIDUseCaseInterface
+	FetchSongsUseCase     music_ucs.FetchSongsUseCaseInterface
+	CreatePlaylistUseCase music_ucs.CreatePlaylistUseCaseInterface
+	AddTracksUseCase      music_ucs.AddTracksUseCaseInterface
 }
 
 func NewRootCmdGateway(
 	logger logger.LoggerInterface,
-	webServer web.WebServerInterface,
-	spotifyClient spotifyclient.SpotifyClientInterface,
+	authenticator music.Authenticator,
 	getSetlistByIDUseCase setlistfm_ucs.GetSetlistByIDUseCaseInterface,
 	fetchSongsUseCase music_ucs.FetchSongsUseCaseInterface,
 	createPlaylistUseCase music_ucs.CreatePlaylistUseCaseInterface,
 	addTracksUseCase music_ucs.AddTracksUseCaseInterface,
-	spotifyUserAuthenticationUseCase spotify_ucs.SpotifyUserAuthenticationUseCaseInterface,
-	genCodes oauth2util.GenerateOutput,
-	state string,
-	ch chan spotifyclient.AuthenticatedClient,
 ) RootCmdGatewayInterface {
 	return &RootCmdGateway{
-		Logger:                           logger,
-		WebServer:                        webServer,
-		SpotifyClient:                    spotifyClient,
-		GetSetlistByIDUseCase:            getSetlistByIDUseCase,
-		FetchSongsUseCase:                fetchSongsUseCase,
-		CreatePlaylistUseCase:            createPlaylistUseCase,
-		AddTracksUseCase:                 addTracksUseCase,
-		SpotifyUserAuthenticationUseCase: spotifyUserAuthenticationUseCase,
-		GeneratedPKCECodes:               genCodes,
-		State:                            state,
-		SpotifyClientChannel:             ch,
+		Logger:                logger,
+		Authenticator:         authenticator,
+		GetSetlistByIDUseCase: getSetlistByIDUseCase,
+		FetchSongsUseCase:     fetchSongsUseCase,
+		CreatePlaylistUseCase: createPlaylistUseCase,
+		AddTracksUseCase:      addTracksUseCase,
 	}
 }
 
@@ -83,12 +63,8 @@ func (gw *RootCmdGateway) GetTracksFromSetlist(setlistfmURL string) (*setlistfm.
 	return set, nil
 }
 
-func (gw *RootCmdGateway) StartWebServer() {
-	gw.WebServer.Start()
-}
-
-func (gw *RootCmdGateway) HandleSpotifyAuthentication(ctx context.Context) error {
-	return gw.SpotifyUserAuthenticationUseCase.Execute(ctx, gw.GeneratedPKCECodes, gw.State)
+func (gw *RootCmdGateway) Authenticate(ctx context.Context) error {
+	return gw.Authenticator.Authenticate(ctx)
 }
 
 func (gw *RootCmdGateway) FetchSongs(

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
@@ -33,8 +34,18 @@ type AuthenticatedClient struct {
 	spotify.Client
 }
 
+// CredentialsProvider supplies the Spotify app credentials. It is read lazily,
+// on first use of the OAuth config, so they may be obtained after the client
+// is constructed (e.g. prompted for on first use).
+type CredentialsProvider interface {
+	Credentials() (clientID string, clientSecret string)
+}
+
 type SpotifyClient struct {
-	Auth                *spotifyauth.Authenticator
+	redirURL            string
+	credentials         CredentialsProvider
+	authOnce            sync.Once
+	auth                *spotifyauth.Authenticator
 	AuthenticatedClient AuthenticatedClient
 	Logger              logger.LoggerInterface
 }
@@ -42,23 +53,35 @@ type SpotifyClient struct {
 func NewSpotifyClient(
 	logger logger.LoggerInterface,
 	redirURL string,
-	clientID string,
-	clientSecret string,
+	credentials CredentialsProvider,
 ) SpotifyClientInterface {
 	return &SpotifyClient{
-		Auth: spotifyauth.New(
-			spotifyauth.WithRedirectURL(redirURL),
-			spotifyauth.WithClientID(clientID),
-			spotifyauth.WithClientSecret(clientSecret),
-			spotifyauth.WithScopes(spotifyauth.ScopeUserReadEmail, spotifyauth.ScopePlaylistModifyPublic),
-		),
+		redirURL:            redirURL,
+		credentials:         credentials,
 		AuthenticatedClient: AuthenticatedClient{},
 		Logger:              logger,
 	}
 }
 
+// Auth builds the OAuth config on first use, so credentials must be available
+// by then.
+func (c *SpotifyClient) Auth() *spotifyauth.Authenticator {
+	c.authOnce.Do(func() {
+		id, secret := c.credentials.Credentials()
+
+		c.auth = spotifyauth.New(
+			spotifyauth.WithRedirectURL(c.redirURL),
+			spotifyauth.WithClientID(id),
+			spotifyauth.WithClientSecret(secret),
+			spotifyauth.WithScopes(spotifyauth.ScopeUserReadEmail, spotifyauth.ScopePlaylistModifyPublic),
+		)
+	})
+
+	return c.auth
+}
+
 func (c *SpotifyClient) GetAuthURL(state string, genCodes oauth2util.GenerateOutput) string {
-	return c.Auth.AuthURL(
+	return c.Auth().AuthURL(
 		state,
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 		oauth2.SetAuthURLParam("code_challenge", genCodes.CodeChallenge),
@@ -71,7 +94,7 @@ func (c *SpotifyClient) GetToken(
 	state string,
 	genCodes oauth2util.GenerateOutput,
 ) (*oauth2.Token, error) {
-	token, err := c.Auth.Token(
+	token, err := c.Auth().Token(
 		ctx,
 		state,
 		r,
@@ -85,7 +108,7 @@ func (c *SpotifyClient) GetToken(
 }
 
 func (c *SpotifyClient) NewAPIClient(ctx context.Context, tok *oauth2.Token) *spotify.Client {
-	return spotify.New(c.Auth.Client(ctx, tok))
+	return spotify.New(c.Auth().Client(ctx, tok))
 }
 
 func (c *SpotifyClient) SetAuthenticatedClient(ch chan AuthenticatedClient) {
@@ -108,7 +131,7 @@ func (c *SpotifyClient) RefreshToken(
 	ctx context.Context,
 	tok *oauth2.Token,
 ) (*oauth2.Token, error) {
-	return c.Auth.RefreshToken(ctx, tok)
+	return c.Auth().RefreshToken(ctx, tok)
 }
 
 func (c *SpotifyClient) SearchCandidates(
