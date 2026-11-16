@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -64,6 +65,12 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		rc.Logger.Error("Failed to fetch songs from Spotify", err, nil)
 		return err
+	}
+
+	if len(songs.Skipped) > 0 {
+		rc.Logger.Warn("Some songs were not found and were skipped", map[string]interface{}{
+			"skipped": strings.Join(songs.Skipped, ", "),
+		})
 	}
 
 	rc.Logger.Info("Creating playlist...", nil)

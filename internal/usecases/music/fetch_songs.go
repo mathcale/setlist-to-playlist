@@ -38,13 +38,12 @@ func (uc *FetchSongsUseCase) Execute(
 			return nil, err
 		}
 
-		if len(candidates) == 0 {
+		c, ok := music.PickBestCandidate(candidates, artist)
+		if !ok {
 			out.Skipped = append(out.Skipped, title)
 			continue
 		}
 
-		// First candidate wins until ranking is introduced.
-		c := candidates[0]
 		out.Songs = append(out.Songs, music.Song{ID: c.TrackID, Title: c.Title, Album: c.Album})
 	}
 
