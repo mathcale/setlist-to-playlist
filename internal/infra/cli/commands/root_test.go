@@ -189,6 +189,25 @@ func (s *RootCmdTestSuite) TestRun() {
 		s.ErrorContains(err, "any-error")
 	})
 
+	s.Run("Should exit cleanly when the provider has no playlist support yet", func() {
+		defer s.cleanMocks()
+
+		s.LoggerMock.On("Info", mock.Anything, mock.Anything).Return()
+		s.RootCmdGatewayMock.On("CheckProvider", music.ProviderAppleMusic).Return(nil)
+		s.RootCmdGatewayMock.On("GetTracksFromSetlist", mock.Anything).Return(&setlistfm.Set{}, nil)
+		s.RootCmdGatewayMock.On("Authenticate", mock.Anything, music.ProviderAppleMusic).Return(nil)
+		s.RootCmdGatewayMock.
+			On("FetchSongs", mock.Anything, music.ProviderAppleMusic, mock.Anything, mock.Anything).
+			Return(nil, music.ErrNotImplemented)
+
+		cmd := s.Cmd.Build()
+		s.NoError(cmd.Flags().Set("provider", "apple-music"))
+		err := cmd.RunE(cmd, []string{"--url", url})
+
+		s.NoError(err)
+		s.Equal("playlist creation not available yet", s.LoggerMock.Calls[len(s.LoggerMock.Calls)-1].Arguments[0])
+	})
+
 	s.Run("Should return an error when failing to fetch songs from Spotify", func() {
 		defer s.cleanMocks()
 

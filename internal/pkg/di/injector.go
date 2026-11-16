@@ -6,6 +6,7 @@ import (
 	"github.com/dchest/uniuri"
 
 	"github.com/mathcale/setlist-to-playlist/config"
+	applemusic_client "github.com/mathcale/setlist-to-playlist/internal/clients/applemusic"
 	"github.com/mathcale/setlist-to-playlist/internal/clients/setlistfm"
 	spotify_client "github.com/mathcale/setlist-to-playlist/internal/clients/spotify"
 	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
@@ -22,10 +23,14 @@ import (
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/oauth2"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/prompter"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/responsehandler"
+	applemusic_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/applemusic"
 	setlistfm_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/setlistfm"
 	spotify_ucs "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify"
 	spotify_uc_gw "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify/gateways"
 )
+
+// appleMusicTimeout bounds each Apple Music API request.
+const appleMusicTimeout = 10 * time.Second
 
 type DependencyInjectorInterface interface {
 	Inject() (*Dependencies, error)
@@ -130,10 +135,25 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 		state,
 	)
 
-	// Registering a provider is one line; providers without a line here (Apple
-	// Music, for now) are reported as not available yet.
+	// Apple Music needs no web server and never touches the Spotify
+	// credential store: it asks for its own tokens on first use.
+	appleMusicHTTPClient := httpclient.NewHttpClient(
+		applemusic_client.BaseURL,
+		appleMusicTimeout,
+	)
+	appleMusicClient := applemusic_client.NewClient(appleMusicHTTPClient)
+	appleMusicAuthPersistence := persistence.NewAppleMusicAuthPersistence(
+		plaintext.NewPlainTextPersistenceStrategy(fsDriver, l, di.ConfigPaths.AppleMusicAuthFile),
+		l,
+	)
+	appleMusicAuthenticator := applemusic_ucs.NewAuthenticator(
+		appleMusicAuthPersistence, appleMusicClient, di.Prompter, l,
+	)
+
+	// Registering a provider is one line.
 	providers := music.NewProviderRegistry().
-		Register(music.ProviderSpotify, spotifyClient, spotifyAuthenticator)
+		Register(music.ProviderSpotify, spotifyClient, spotifyAuthenticator).
+		Register(music.ProviderAppleMusic, appleMusicClient, appleMusicAuthenticator)
 
 	rootCmdGw := rootcmd_gw.NewRootCmdGateway(l, providers, getSetlistByIDUseCase)
 
