@@ -1,11 +1,13 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/mathcale/setlist-to-playlist/internal/entities/music"
 	"github.com/mathcale/setlist-to-playlist/internal/infra/cli/commands/gateways"
 	"github.com/mathcale/setlist-to-playlist/internal/pkg/logger"
 )
@@ -36,6 +38,10 @@ func (s *RootCmd) Build() *cobra.Command {
 	}
 
 	cmd.Flags().String("url", "", "setlist.fm set URL to create a playlist from")
+	cmd.Flags().StringP(
+		"provider", "p", string(music.DefaultProvider),
+		"music provider to create the playlist on (spotify, apple-music)",
+	)
 	cmd.MarkFlagRequired("url")
 
 	return cmd
@@ -43,6 +49,22 @@ func (s *RootCmd) Build() *cobra.Command {
 
 func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 	setlistfmURL, _ := cmd.Flags().GetString("url")
+
+	provider, err := rc.resolveProvider(cmd)
+	if err != nil {
+		return err
+	}
+
+	name := provider.DisplayName()
+
+	if err := rc.Gateway.CheckProvider(provider); err != nil {
+		if errors.Is(err, music.ErrProviderUnavailable) {
+			rc.Logger.Info(fmt.Sprintf("%s support is not available yet, try another provider", name), nil)
+			return nil
+		}
+
+		return err
+	}
 
 	rc.Logger.Info("Fetching setlist...", nil)
 
@@ -52,16 +74,18 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := rc.Gateway.Authenticate(cmd.Context()); err != nil {
-		rc.Logger.Error("Failed to authenticate on Spotify", err, nil)
+	rc.Logger.Info(fmt.Sprintf("Authenticating on %s...", name), nil)
+
+	if err := rc.Gateway.Authenticate(cmd.Context(), provider); err != nil {
+		rc.Logger.Error(fmt.Sprintf("Failed to authenticate on %s", name), err, nil)
 		return err
 	}
 
-	rc.Logger.Info("Fetching songs on Spotify...", nil)
+	rc.Logger.Info(fmt.Sprintf("Fetching songs on %s...", name), nil)
 
-	songs, err := rc.Gateway.FetchSongs(cmd.Context(), set.Songs(), set.ArtistName())
+	songs, err := rc.Gateway.FetchSongs(cmd.Context(), provider, set.Songs(), set.ArtistName())
 	if err != nil {
-		rc.Logger.Error("Failed to fetch songs from Spotify", err, nil)
+		rc.Logger.Error(fmt.Sprintf("Failed to fetch songs from %s", name), err, nil)
 		return err
 	}
 
@@ -71,14 +95,27 @@ func (rc *RootCmd) run(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	rc.Logger.Info("Creating playlist...", nil)
+	rc.Logger.Info(fmt.Sprintf("Creating playlist on %s...", name), nil)
 
-	playlistURL, err := rc.Gateway.CreatePlaylist(cmd.Context(), set.Title(), songs.Songs)
+	playlistURL, err := rc.Gateway.CreatePlaylist(cmd.Context(), provider, set.Title(), songs.Songs)
 	if err != nil {
-		rc.Logger.Error("Failed to create playlist on Spotify", err, nil)
+		rc.Logger.Error(fmt.Sprintf("Failed to create playlist on %s", name), err, nil)
 		return err
 	}
 
 	rc.Logger.Info(fmt.Sprintf("Playlist created successfully, check it out: %s", *playlistURL), nil)
 	return nil
+}
+
+// resolveProvider reads --provider. When the flag is absent this is where the
+// interactive provider menu will plug in (ATMT-170); for now it defaults to
+// Spotify.
+func (rc *RootCmd) resolveProvider(cmd *cobra.Command) (music.ProviderID, error) {
+	raw, _ := cmd.Flags().GetString("provider")
+
+	if !cmd.Flags().Changed("provider") {
+		return music.DefaultProvider, nil
+	}
+
+	return music.ParseProviderID(raw)
 }
