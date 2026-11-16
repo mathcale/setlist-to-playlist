@@ -34,9 +34,10 @@ type Config struct {
 }
 
 type ConfigPaths struct {
-	AppConfigDir    string
-	AppConfigFile   string
-	SpotifyAuthFile string
+	AppConfigDir       string
+	AppConfigFile      string
+	SpotifyAuthFile    string
+	AppleMusicAuthFile string
 }
 
 func Init() (*ConfigPaths, error) {
@@ -51,6 +52,8 @@ func Init() (*ConfigPaths, error) {
 	appConfigFilePath := path.Join(appConfigDirPath, "config.toml")
 	spotifyAuthFilePath := path.Join(appConfigDirPath, "spotify_auth.json")
 
+	appleMusicAuthFilePath := path.Join(appConfigDirPath, "apple_music_auth.json")
+
 	if err := fsDriver.CreateDir(appConfigDirPath, 0750); err != nil {
 		return nil, err
 	}
@@ -61,10 +64,17 @@ func Init() (*ConfigPaths, error) {
 		}
 	}
 
+	if exists := fsDriver.Exists(appleMusicAuthFilePath); !exists {
+		if err := fsDriver.Write(appleMusicAuthFilePath, []byte("{}"), 0660); err != nil {
+			return nil, err
+		}
+	}
+
 	return &ConfigPaths{
-		AppConfigDir:    appConfigDirPath,
-		AppConfigFile:   appConfigFilePath,
-		SpotifyAuthFile: spotifyAuthFilePath,
+		AppConfigDir:       appConfigDirPath,
+		AppConfigFile:      appConfigFilePath,
+		SpotifyAuthFile:    spotifyAuthFilePath,
+		AppleMusicAuthFile: appleMusicAuthFilePath,
 	}, nil
 }
 
