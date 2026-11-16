@@ -1,16 +1,16 @@
 package commands
 
-import "os"
+import (
+	"os"
+
+	"github.com/charmbracelet/x/term"
+)
 
 // IsTerminalFunc reports whether stdin is an interactive terminal.
 type IsTerminalFunc func() bool
 
-// StdinIsTerminal is the real implementation: stdin is a character device.
+// StdinIsTerminal is the real implementation. It uses a real isatty check so
+// that /dev/null (also a character device) is not mistaken for a terminal.
 func StdinIsTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-
-	return fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(os.Stdin.Fd())
 }

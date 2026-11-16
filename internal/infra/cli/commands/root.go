@@ -124,7 +124,7 @@ func (rc *RootCmd) resolveProvider(cmd *cobra.Command) (music.ProviderID, error)
 		return music.ParseProviderID(raw)
 	}
 
-	if rc.IsTerminal == nil || !rc.IsTerminal() {
+	if !rc.IsTerminal() {
 		return music.DefaultProvider, nil
 	}
 
