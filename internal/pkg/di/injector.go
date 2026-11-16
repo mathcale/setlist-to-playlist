@@ -29,6 +29,9 @@ import (
 	spotify_uc_gw "github.com/mathcale/setlist-to-playlist/internal/usecases/spotify/gateways"
 )
 
+// appleMusicTimeout bounds each Apple Music API request.
+const appleMusicTimeout = 10 * time.Second
+
 type DependencyInjectorInterface interface {
 	Inject() (*Dependencies, error)
 }
@@ -136,7 +139,7 @@ func (di *DependencyInjector) Inject() (*Dependencies, error) {
 	// credential store: it asks for its own tokens on first use.
 	appleMusicHTTPClient := httpclient.NewHttpClient(
 		applemusic_client.BaseURL,
-		time.Duration(di.Config.SetlistFM.Timeout)*time.Millisecond,
+		appleMusicTimeout,
 	)
 	appleMusicClient := applemusic_client.NewClient(appleMusicHTTPClient)
 	appleMusicAuthPersistence := persistence.NewAppleMusicAuthPersistence(

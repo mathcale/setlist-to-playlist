@@ -69,14 +69,14 @@ func (a *Authenticator) load() (*applemusic.AuthData, error) {
 		return nil, err
 	}
 
-	mut, err := a.prompter.Secret("What's your Apple Music media-user-token cookie value?")
+	mediaUserToken, err := a.prompter.Secret("What's your Apple Music media-user-token cookie value?")
 	if err != nil {
 		return nil, err
 	}
 
 	auth := applemusic.AuthData{
 		BearerToken:    strings.TrimSpace(bearer),
-		MediaUserToken: strings.TrimSpace(mut),
+		MediaUserToken: strings.TrimSpace(mediaUserToken),
 	}
 
 	if err := auth.Validate(); err != nil {
